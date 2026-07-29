@@ -84,8 +84,8 @@ export function AdminChrome({
       </header>
       {demo && (
         <div className="crm-demo-banner">
-          Demo-modus — voorbeelddata (nog geen Supabase gekoppeld). Alles is
-          klikbaar om de CRM te bekijken.
+          Demo-modus — geen Supabase gekoppeld. Data staat alleen lokaal in
+          geheugen.
         </div>
       )}
       <div className="crm-main">{children}</div>

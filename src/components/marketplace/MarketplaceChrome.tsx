@@ -45,7 +45,7 @@ export function MarketplaceChrome({
       </header>
       {demo && (
         <div className="crm-demo-banner">
-          Demo-modus — login bijv. dealer / dealer123
+          Demo-modus — geen Supabase gekoppeld (lege lokale store).
         </div>
       )}
       <main className="crm-main">{children}</main>

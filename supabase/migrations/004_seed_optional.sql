@@ -1,8 +1,4 @@
 -- =============================================================================
--- Optioneel: seed voorbeeld-handelaar
+-- Optionele seed — leeg gelaten (geen voorbeeldddata)
 -- =============================================================================
-
-insert into public.buyers (naam, email, telefoon, bedrijf)
-values
-  ('Piet de Vries', 'piet@voorbeeldhandel.nl', '0201234567', 'Voorbeeld Heftruck Handel BV')
-on conflict do nothing;
+-- Voeg hier handmatig testdata toe indien nodig.

@@ -261,11 +261,118 @@ grant all on public.buyers to service_role;
 grant all on public.contracts to service_role;
 
 grant select on public.leads_overview to service_role;
+
+
+
 -- =============================================================================
--- Optioneel: seed voorbeeld-handelaar
+-- 005 deal fields + 006 marketplace + 007 dealer + 008 period costs
 -- =============================================================================
 
-insert into public.buyers (naam, email, telefoon, bedrijf)
-values
-  ('Piet de Vries', 'piet@voorbeeldhandel.nl', '0201234567', 'Voorbeeld Heftruck Handel BV')
-on conflict do nothing;
+-- Deal / contract velden op leads
+alter table public.leads
+  add column if not exists verkoopprijs double precision,
+  add column if not exists deal_datum date,
+  add column if not exists netto_inkoopprijs double precision;
+
+comment on column public.leads.inkoopprijs is 'Bruto inkoopprijs = bedrag dat de klant ontvangt (enige prijs in contract)';
+comment on column public.leads.marge is 'Bemiddelingsmarge';
+comment on column public.leads.netto_inkoopprijs is 'Netto = bruto + marge (prijs richting dealer)';
+comment on column public.leads.verkoopprijs is 'Optionele markt-/verkoopprijs indicatie';
+comment on column public.leads.deal_datum is 'Datum van de deal/overeenkomst';
+
+-- Marketplace: veilingen (7 dagen), biedingen, shares naar handelaren
+create table if not exists public.marketplace_listings (
+  id              text primary key default gen_random_uuid()::text,
+  lead_id         text not null references public.leads(id) on delete cascade,
+  slug            text not null unique,
+  omschrijving    text,
+  woonplaats      text not null,
+  merk            text not null,
+  model           text,
+  status          text not null default 'actief',
+  starts_at       timestamptz not null default now(),
+  ends_at         timestamptz not null,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  constraint marketplace_listings_status_check check (
+    status in ('actief', 'verlopen', 'ingetrokken')
+  )
+);
+
+create index if not exists marketplace_listings_lead_id_idx
+  on public.marketplace_listings (lead_id);
+create index if not exists marketplace_listings_status_ends_idx
+  on public.marketplace_listings (status, ends_at);
+create index if not exists marketplace_listings_slug_idx
+  on public.marketplace_listings (slug);
+
+create table if not exists public.marketplace_bids (
+  id               text primary key default gen_random_uuid()::text,
+  listing_id       text not null references public.marketplace_listings(id) on delete cascade,
+  bidder_naam      text not null,
+  bidder_email     text not null,
+  bidder_telefoon  text,
+  bidder_bedrijf   text,
+  bedrag           double precision not null,
+  created_at       timestamptz not null default now(),
+  constraint marketplace_bids_bedrag_check check (bedrag > 0)
+);
+
+create index if not exists marketplace_bids_listing_id_idx
+  on public.marketplace_bids (listing_id);
+create index if not exists marketplace_bids_created_at_idx
+  on public.marketplace_bids (created_at desc);
+
+create table if not exists public.marketplace_shares (
+  id          text primary key default gen_random_uuid()::text,
+  listing_id  text not null references public.marketplace_listings(id) on delete cascade,
+  buyer_id    text references public.buyers(id) on delete set null,
+  email       text not null,
+  sent_at     timestamptz not null default now()
+);
+
+create index if not exists marketplace_shares_listing_id_idx
+  on public.marketplace_shares (listing_id);
+
+comment on table public.marketplace_listings is 'Heftruck veilingen op het platform (standaard 7 dagen)';
+comment on column public.marketplace_listings.slug is 'Unieke publieke link: /marketplace/{slug}';
+comment on column public.marketplace_listings.ends_at is 'Na deze tijd status → verlopen (niet meer publiek)';
+
+-- Dealer login gekoppeld aan kopers/handelaren
+alter table public.buyers
+  add column if not exists dealer_username text,
+  add column if not exists dealer_password_hash text,
+  add column if not exists dealer_enabled boolean not null default false;
+
+create unique index if not exists buyers_dealer_username_uidx
+  on public.buyers (dealer_username)
+  where dealer_username is not null;
+
+comment on column public.buyers.dealer_username is 'Login voor /dealer/login marketplace';
+comment on column public.buyers.dealer_enabled is 'Mag inloggen op marketplace';
+
+-- Dagelijkse kosten voor periode-rapportage
+create table if not exists public.period_costs (
+  id           text primary key default gen_random_uuid()::text,
+  cost_date    date not null unique,
+  ad_spend     double precision not null default 0,
+  sales_cost   double precision not null default 0,
+  note         text,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  constraint period_costs_amounts_check check (ad_spend >= 0 and sales_cost >= 0)
+);
+
+create index if not exists period_costs_date_idx on public.period_costs (cost_date desc);
+
+comment on table public.period_costs is 'Ad spend & sales cost per dag voor rapportage';
+
+-- RLS extras for new tables
+alter table public.marketplace_listings enable row level security;
+alter table public.marketplace_bids enable row level security;
+alter table public.marketplace_shares enable row level security;
+alter table public.period_costs enable row level security;
+grant all on public.marketplace_listings to service_role;
+grant all on public.marketplace_bids to service_role;
+grant all on public.marketplace_shares to service_role;
+grant all on public.period_costs to service_role;
