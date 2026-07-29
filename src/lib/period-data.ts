@@ -5,6 +5,7 @@ import {
   type CostPoint,
   type DayMetrics,
   type DealPoint,
+  type LeadPoint,
 } from "./period-report";
 import { getSupabaseAdmin } from "./supabase";
 
@@ -16,6 +17,7 @@ export type PeriodReport = {
 export type DashboardSeries = {
   deals: DealPoint[];
   costs: CostPoint[];
+  leads: LeadPoint[];
 };
 
 export type BuyerDealPoint = {
@@ -170,6 +172,9 @@ export async function crmDashboardSeries(): Promise<DashboardSeries> {
           bemVol: l.inkoopprijs || 0,
           omzet: l.marge || 0,
         })),
+      leads: store.leads.map((l) => ({
+        date: l.created_at.slice(0, 10),
+      })),
       costs: (store.periodCosts ?? []).map((c) => ({
         date: c.cost_date,
         adSpend: c.ad_spend,
@@ -179,18 +184,23 @@ export async function crmDashboardSeries(): Promise<DashboardSeries> {
   }
 
   const supabase = getSupabaseAdmin();
-  const [{ data: dealRows, error: dealError }, { data: costRows, error: costError }] =
-    await Promise.all([
-      supabase
-        .from("leads")
-        .select(
-          "deal_datum, updated_at, created_at, inkoopprijs, marge, netto_inkoopprijs, verkoopprijs, status",
-        )
-        .eq("status", "deal"),
-      supabase.from("period_costs").select("*").order("cost_date", { ascending: false }),
-    ]);
+  const [
+    { data: dealRows, error: dealError },
+    { data: leadRows, error: leadError },
+    { data: costRows, error: costError },
+  ] = await Promise.all([
+    supabase
+      .from("leads")
+      .select(
+        "deal_datum, updated_at, created_at, inkoopprijs, marge, netto_inkoopprijs, verkoopprijs, status",
+      )
+      .eq("status", "deal"),
+    supabase.from("leads").select("created_at"),
+    supabase.from("period_costs").select("*").order("cost_date", { ascending: false }),
+  ]);
 
   if (dealError) throw new Error(dealError.message);
+  if (leadError) throw new Error(leadError.message);
   if (costError) throw new Error(costError.message);
 
   return {
@@ -208,6 +218,9 @@ export async function crmDashboardSeries(): Promise<DashboardSeries> {
         omzet: Number(row.marge) || 0,
       };
     }),
+    leads: (leadRows ?? []).map((l) => ({
+      date: String((l as { created_at: string }).created_at).slice(0, 10),
+    })),
     costs: ((costRows ?? []) as PeriodCostRow[]).map((c) => ({
       date: c.cost_date,
       adSpend: Number(c.ad_spend) || 0,
@@ -217,8 +230,8 @@ export async function crmDashboardSeries(): Promise<DashboardSeries> {
 }
 
 export async function crmPeriodReport(): Promise<PeriodReport> {
-  const { deals, costs } = await crmDashboardSeries();
-  const tree = buildPeriodTree(deals, costs);
+  const { deals, costs, leads } = await crmDashboardSeries();
+  const tree = buildPeriodTree(deals, costs, leads);
   return { tree, totals: totalsFromTree(tree) };
 }
 

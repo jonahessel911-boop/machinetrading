@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClickableRow } from "@/components/admin/ClickableRow";
+import { KvkCompanySearch } from "@/components/KvkCompanySearch";
 import type { BuyerPeriodStats, BuyerDealPoint } from "@/lib/period-data";
 import { aggregateBuyersForPeriod } from "@/lib/period-data";
 import {
@@ -11,6 +12,7 @@ import {
   type PeriodPreset,
 } from "@/lib/periods";
 import { formatEuro, formatEuroK } from "@/lib/status";
+import type { KvkCompanyProfile } from "@/lib/kvk";
 
 type BuyerForm = {
   id: string;
@@ -30,6 +32,12 @@ const emptyForm = {
   telefoon: "",
   dealerPassword: "",
   dealerEnabled: true,
+  invoiceKvk: "",
+  invoiceStraat: "",
+  invoiceHuisnummer: "",
+  invoicePostcode: "",
+  invoiceWoonplaats: "",
+  invoiceLand: "Nederland",
 };
 
 export function KopersClient({
@@ -77,16 +85,24 @@ export function KopersClient({
     setMessage("");
   }
 
+  function applyKvk(profile: KvkCompanyProfile) {
+    setForm((f) => ({
+      ...f,
+      bedrijf: profile.naam || f.bedrijf,
+      invoiceKvk: profile.kvkNummer,
+      invoiceStraat: profile.straat || "",
+      invoiceHuisnummer: profile.huisnummer || "",
+      invoicePostcode: profile.postcode || "",
+      invoiceWoonplaats: profile.woonplaats || "",
+      invoiceLand: profile.land || "Nederland",
+    }));
+  }
+
   async function createBuyer(e: React.FormEvent) {
     e.preventDefault();
     setMessage("");
     const email = form.email.trim();
-    const wantsLogin = Boolean(form.dealerPassword) || form.dealerEnabled;
 
-    if (wantsLogin && form.dealerPassword && !email) {
-      setMessage("E-mail is verplicht voor marketplace-login.");
-      return;
-    }
     if (form.dealerPassword && !email) {
       setMessage("E-mail is verplicht als je een wachtwoord instelt.");
       return;
@@ -105,6 +121,18 @@ export function KopersClient({
           dealerUsername: form.dealerPassword && email ? email : null,
           dealerPassword: form.dealerPassword || null,
           dealerEnabled: form.dealerEnabled,
+          invoice: {
+            invoiceBedrijf: form.bedrijf,
+            invoiceContact: form.naam,
+            invoiceEmail: email || null,
+            invoiceTelefoon: form.telefoon || null,
+            invoiceStraat: form.invoiceStraat || null,
+            invoiceHuisnummer: form.invoiceHuisnummer || null,
+            invoicePostcode: form.invoicePostcode || null,
+            invoiceWoonplaats: form.invoiceWoonplaats || null,
+            invoiceLand: form.invoiceLand || "Nederland",
+            invoiceKvk: form.invoiceKvk || null,
+          },
         }),
       });
       const data = await res.json();
@@ -216,6 +244,8 @@ export function KopersClient({
             </div>
             <div className="crm-modal-body">
               <form className="crm-form" onSubmit={createBuyer}>
+                <KvkCompanySearch onSelect={applyKvk} />
+
                 <label>
                   Bedrijf
                   <input
@@ -225,7 +255,6 @@ export function KopersClient({
                     onChange={(e) =>
                       setForm((f) => ({ ...f, bedrijf: e.target.value }))
                     }
-                    autoFocus
                   />
                 </label>
                 <label>
@@ -263,9 +292,18 @@ export function KopersClient({
                   />
                 </label>
 
+                {(form.invoiceKvk || form.invoiceStraat) && (
+                  <p className="crm-muted" style={{ margin: 0 }}>
+                    KvK {form.invoiceKvk || "—"}
+                    {form.invoiceStraat
+                      ? ` · ${form.invoiceStraat} ${form.invoiceHuisnummer}, ${form.invoicePostcode} ${form.invoiceWoonplaats}`
+                      : ""}
+                  </p>
+                )}
+
                 <hr className="crm-form-hr" />
                 <p className="crm-muted" style={{ margin: 0 }}>
-                  Marketplace-login (/dealer/login) — e-mail + wachtwoord
+                  Marketplace-login — e-mail + wachtwoord
                 </p>
                 <label>
                   Wachtwoord

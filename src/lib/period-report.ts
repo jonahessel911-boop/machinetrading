@@ -8,9 +8,12 @@ export type DayMetrics = {
   bemVol: number;
   /** Omzet = som marge per deal */
   omzet: number;
-  /** Winst = som marge (zelfde basis als omzet) */
+  /** Winst = omzet − ad spend − sales cost */
   winst: number;
+  leads: number;
   deals: number;
+  /** deals / leads * 100 */
+  conversiePct: number;
   winstPerDeal: number;
   isCurrent?: boolean;
   children?: DayMetrics[];
@@ -22,6 +25,11 @@ export type DealPoint = {
   bemVol: number;
   /** Marge (business-omzet) */
   omzet: number;
+};
+
+/** Nieuwe lead (op created_at) */
+export type LeadPoint = {
+  date: string;
 };
 
 export type CostPoint = {
@@ -80,15 +88,19 @@ function emptyMetrics(
     bemVol: 0,
     omzet: 0,
     winst: 0,
+    leads: 0,
     deals: 0,
+    conversiePct: 0,
     winstPerDeal: 0,
     children: [],
   };
 }
 
 function finalize(node: DayMetrics): DayMetrics {
-  node.winst = node.omzet;
+  node.winst = node.omzet - node.adSpend - node.salesCost;
   node.winstPerDeal = node.deals > 0 ? node.winst / node.deals : 0;
+  node.conversiePct =
+    node.leads > 0 ? (node.deals / node.leads) * 100 : 0;
   if (node.children) {
     node.children = node.children.map(finalize);
   }
@@ -102,6 +114,10 @@ function addDeal(node: DayMetrics, bemVol: number, omzet: number) {
   node.deals += 1;
 }
 
+function addLead(node: DayMetrics) {
+  node.leads += 1;
+}
+
 function addCost(node: DayMetrics, ad: number, sales: number) {
   node.adSpend += ad;
   node.salesCost += sales;
@@ -111,6 +127,7 @@ function addCost(node: DayMetrics, ad: number, sales: number) {
 export function buildPeriodTree(
   deals: DealPoint[],
   costs: CostPoint[],
+  leads: LeadPoint[] = [],
   now = new Date(),
 ): DayMetrics[] {
   const todayKey = toDateKey(
@@ -185,6 +202,14 @@ export function buildPeriodTree(
     addDeal(year, deal.bemVol, deal.omzet);
   }
 
+  for (const lead of leads) {
+    const { year, month, week, day } = ensureDay(lead.date);
+    addLead(day);
+    addLead(week);
+    addLead(month);
+    addLead(year);
+  }
+
   for (const cost of costs) {
     const { year, month, week, day } = ensureDay(cost.date);
     addCost(day, cost.adSpend, cost.salesCost);
@@ -223,6 +248,7 @@ export function totalsFromTree(tree: DayMetrics[]): DayMetrics {
     t.bemVol += y.bemVol;
     t.omzet += y.omzet;
     t.winst += y.winst;
+    t.leads += y.leads;
     t.deals += y.deals;
   }
   return finalize(t);
@@ -234,7 +260,9 @@ export type RangeMetrics = {
   bemVol: number;
   omzet: number;
   winst: number;
+  leads: number;
   deals: number;
+  conversiePct: number;
   winstPerDeal: number;
 };
 
@@ -245,7 +273,9 @@ export function emptyRangeMetrics(): RangeMetrics {
     bemVol: 0,
     omzet: 0,
     winst: 0,
+    leads: 0,
     deals: 0,
+    conversiePct: 0,
     winstPerDeal: 0,
   };
 }
@@ -256,6 +286,7 @@ export function aggregateRange(
   costs: CostPoint[],
   from: string,
   to: string,
+  leads: LeadPoint[] = [],
 ): RangeMetrics {
   const m = emptyRangeMetrics();
   for (const d of deals) {
@@ -265,12 +296,18 @@ export function aggregateRange(
     m.winst += d.omzet;
     m.deals += 1;
   }
+  for (const l of leads) {
+    if (l.date < from || l.date > to) continue;
+    m.leads += 1;
+  }
   for (const c of costs) {
     if (c.date < from || c.date > to) continue;
     m.adSpend += c.adSpend;
     m.salesCost += c.salesCost;
   }
+  m.winst = m.omzet - m.adSpend - m.salesCost;
   m.winstPerDeal = m.deals > 0 ? m.winst / m.deals : 0;
+  m.conversiePct = m.leads > 0 ? (m.deals / m.leads) * 100 : 0;
   return m;
 }
 

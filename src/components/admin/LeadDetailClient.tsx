@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MANUAL_STATUSES, STATUS_LABELS } from "@/lib/constants";
-import type { Buyer, Lead } from "@/lib/mappers";
+import type { Lead } from "@/lib/mappers";
 import type { MarketplaceListing } from "@/lib/marketplace";
 import { formatEuro, formatDateTime, labelForStatus } from "@/lib/status";
 import {
@@ -48,11 +48,9 @@ function PostcodeIcon() {
 
 export function LeadDetailClient({
   initialLead,
-  buyers,
   initialListing = null,
 }: {
   initialLead: Lead;
-  buyers: Buyer[];
   initialListing?: MarketplaceListing | null;
 }) {
   const router = useRouter();
@@ -66,7 +64,6 @@ export function LeadDetailClient({
     marge: lead.marge,
     nettoInkoopprijs: lead.nettoInkoopprijs,
   });
-  const [buyerId, setBuyerId] = useState(lead.buyerId ?? "");
   const [straat, setStraat] = useState(lead.straat ?? "");
   const [huisnummer, setHuisnummer] = useState(lead.huisnummer ?? "");
   const [toevoeging, setToevoeging] = useState(lead.toevoeging ?? "");
@@ -92,7 +89,6 @@ export function LeadDetailClient({
       if (!res.ok) throw new Error(data.error || "Update mislukt");
       setLead(data);
       finance.syncFromLead(data);
-      setBuyerId(data.buyerId ?? "");
       setStraat(data.straat ?? "");
       setHuisnummer(data.huisnummer ?? "");
       setToevoeging(data.toevoeging ?? "");
@@ -176,11 +172,6 @@ export function LeadDetailClient({
     } finally {
       setLookupBusy(false);
     }
-  }
-
-  async function linkBuyer() {
-    await patch({ buyerId: buyerId || null });
-    setMessage(buyerId ? "Koper gekoppeld." : "Koper ontkoppeld.");
   }
 
   async function setStatus(status: string) {
@@ -300,7 +291,7 @@ export function LeadDetailClient({
             href={`/admin/leads/${lead.id}/deal`}
             className="crm-btn"
           >
-            Deal aanmaken
+            {lead.status === "deal" ? "Naar deal" : "Deal aanmaken"}
           </Link>
           <a className="crm-btn" href={`tel:${lead.telefoon}`}>
             Bellen
@@ -345,46 +336,13 @@ export function LeadDetailClient({
           <span className={statusBadgeClass(lead.status)}>
             {labelForStatus(lead.status, lead.contactAttempts)}
           </span>
-          <div className="crm-highlight-meta">
-            <div>
-              <strong>Telefoon</strong>
-              <a href={`tel:${lead.telefoon}`}>{lead.telefoon}</a>
-            </div>
-            <div>
-              <strong>E-mail</strong>
-              <a href={`mailto:${lead.email}`}>{lead.email}</a>
-            </div>
-            <div>
-              <strong>Woonplaats</strong>
-              {lead.woonplaats}
-            </div>
-            <div>
-              <strong>Adres</strong>
-              {[lead.straat, lead.huisnummer, lead.toevoeging]
-                .filter(Boolean)
-                .join(" ")}
-              {lead.postcode ? `, ${lead.postcode}` : ""}
-            </div>
-            <div>
-              <strong>Timing</strong>
-              {lead.timing}
-            </div>
-            <div>
-              <strong>Aangemeld</strong>
-              {formatDateTime(lead.createdAt)}
-            </div>
-            <div>
-              <strong>Koper</strong>
-              {lead.buyer?.bedrijf ?? "Nog niet gekoppeld"}
-            </div>
-          </div>
         </div>
       </div>
 
       <div className="crm-two">
         <div>
           <div className="crm-card">
-            <div className="crm-card-head">Contactgegevens & adres</div>
+            <div className="crm-card-head">Leadgegevens & adres</div>
             <div className="crm-card-body">
               <div className="crm-fields" style={{ marginBottom: "1rem" }}>
                 <div className="crm-field">
@@ -402,6 +360,18 @@ export function LeadDetailClient({
                   <div>
                     <a href={`tel:${lead.telefoon}`}>{lead.telefoon}</a>
                   </div>
+                </div>
+                <div className="crm-field">
+                  <label>Timing</label>
+                  <div>{lead.timing}</div>
+                </div>
+                <div className="crm-field">
+                  <label>Aangemeld</label>
+                  <div>{formatDateTime(lead.createdAt)}</div>
+                </div>
+                <div className="crm-field">
+                  <label>Koper</label>
+                  <div>{lead.buyer?.bedrijf ?? "Nog niet gekoppeld"}</div>
                 </div>
               </div>
 
@@ -486,14 +456,6 @@ export function LeadDetailClient({
                   <label>Model</label>
                   <div>{lead.model ?? "—"}</div>
                 </div>
-                <div className="crm-field">
-                  <label>Gewenste verkoop</label>
-                  <div>{lead.timing}</div>
-                </div>
-                <div className="crm-field">
-                  <label>Lead-ID</label>
-                  <div>{lead.id}</div>
-                </div>
               </div>
             </div>
           </div>
@@ -563,26 +525,70 @@ export function LeadDetailClient({
           <div className="crm-card">
             <div className="crm-card-head">Deal & contract</div>
             <div className="crm-card-body">
-              <p className="crm-muted">
-                Open de deal-pagina om alle contractgegevens, handelaar,
-                bemiddelaar en prijzen in te vullen.
-              </p>
-              <div className="crm-actions">
-                <Link
-                  href={`/admin/leads/${lead.id}/deal`}
-                  className="crm-btn crm-btn-primary"
-                >
-                  Deal aanmaken
-                </Link>
-              </div>
-              {lead.inkoopprijs != null && (
-                <p className="crm-muted" style={{ marginTop: "0.75rem" }}>
-                  Bruto {formatEuro(lead.inkoopprijs)}
-                  {lead.marge != null ? ` · marge ${formatEuro(lead.marge)}` : ""}
-                  {lead.nettoInkoopprijs != null
-                    ? ` · netto ${formatEuro(lead.nettoInkoopprijs)}`
-                    : ""}
-                </p>
+              {lead.status === "deal" ? (
+                <>
+                  <div
+                    className="crm-table-wrap"
+                    style={{ border: "none", boxShadow: "none", margin: 0 }}
+                  >
+                    <table className="crm-table">
+                      <thead>
+                        <tr>
+                          <th>Machine</th>
+                          <th>Koper</th>
+                          <th>Datum</th>
+                          <th>Inkoop</th>
+                          <th>Marge</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>
+                            {lead.merk} {lead.model}
+                          </td>
+                          <td>{lead.buyer?.bedrijf ?? "—"}</td>
+                          <td>{lead.dealDatum ?? "—"}</td>
+                          <td>{formatEuro(lead.inkoopprijs)}</td>
+                          <td>{formatEuro(lead.marge)}</td>
+                          <td>
+                            <Link
+                              href={`/admin/leads/${lead.id}/deal`}
+                              className="crm-icon-btn"
+                              title="Naar deal"
+                              aria-label="Naar deal"
+                            >
+                              ✎
+                            </Link>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="crm-actions" style={{ marginTop: "0.75rem" }}>
+                    <Link
+                      href={`/admin/leads/${lead.id}/deal`}
+                      className="crm-btn crm-btn-primary"
+                    >
+                      Naar deal
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="crm-muted">
+                    Open de deal-pagina om alle contractgegevens, handelaar,
+                    bemiddelaar en prijzen in te vullen.
+                  </p>
+                  <div className="crm-actions">
+                    <Link
+                      href={`/admin/leads/${lead.id}/deal`}
+                      className="crm-btn crm-btn-primary"
+                    >
+                      Deal aanmaken
+                    </Link>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -736,40 +742,6 @@ export function LeadDetailClient({
                 >
                   Opslaan
                 </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="crm-card">
-            <div className="crm-card-head">Koper (snelkoppeling)</div>
-            <div className="crm-card-body">
-              <div className="crm-form">
-                <label>
-                  Gekoppelde koper
-                  <select
-                    className="crm-select"
-                    value={buyerId}
-                    onChange={(e) => setBuyerId(e.target.value)}
-                  >
-                    <option value="">— Geen —</option>
-                    {buyers.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.bedrijf} ({b.naam})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  className="crm-btn"
-                  disabled={busy}
-                  onClick={linkBuyer}
-                >
-                  Koper koppelen
-                </button>
-                <Link href="/admin/kopers" className="crm-btn">
-                  Beheer kopers
-                </Link>
               </div>
             </div>
           </div>

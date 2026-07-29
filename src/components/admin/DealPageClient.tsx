@@ -8,6 +8,7 @@ import {
   useFinanceCalc,
 } from "@/components/admin/FinanceCalcFields";
 import type { Buyer, Lead } from "@/lib/mappers";
+import { formatEuroK } from "@/lib/status";
 
 type CompanyInfo = {
   name: string;
@@ -34,11 +35,14 @@ export function DealPageClient({
 }) {
   const router = useRouter();
   const [lead, setLead] = useState(initialLead);
+  const isExistingDeal = lead.status === "deal";
+  const [editing, setEditing] = useState(!isExistingDeal);
   const [busy, setBusy] = useState(false);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   const [naam, setNaam] = useState(lead.naam);
+  const [bedrijfsnaam, setBedrijfsnaam] = useState(lead.bedrijfsnaam ?? "");
   const [email, setEmail] = useState(lead.email);
   const [telefoon, setTelefoon] = useState(lead.telefoon);
   const [straat, setStraat] = useState(lead.straat ?? "");
@@ -104,7 +108,7 @@ export function DealPageClient({
       return;
     }
     if (!finance.bruto) {
-      setMessage("Bruto inkoopprijs is verplicht voor het contract.");
+      setMessage("Inkoopprijs is verplicht voor het contract.");
       return;
     }
 
@@ -118,6 +122,7 @@ export function DealPageClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           naam,
+          bedrijfsnaam: bedrijfsnaam.trim() || null,
           email,
           telefoon,
           straat,
@@ -141,6 +146,7 @@ export function DealPageClient({
       if (!res.ok) throw new Error(data.error || "Opslaan mislukt");
       setLead(data);
       finance.syncFromLead(data);
+      setBedrijfsnaam(data.bedrijfsnaam ?? "");
       setMessage("Deal opgeslagen.");
 
       if (andGenerate) {
@@ -160,7 +166,12 @@ export function DealPageClient({
         a.download = `contract-${lead.id}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
-        setMessage("Deal opgeslagen en contract-PDF gedownload.");
+        setMessage(
+          isExistingDeal
+            ? "Deal opgeslagen en contract opnieuw verstuurd (PDF gedownload)."
+            : "Deal opgeslagen, contract-PDF gedownload. Draft-factuur aangemaakt; eventuele marketplace-veiling ingetrokken.",
+        );
+        setEditing(false);
       }
 
       router.refresh();
@@ -171,12 +182,15 @@ export function DealPageClient({
     }
   }
 
+  const showForm = editing || !isExistingDeal;
+
   return (
     <>
       <div className="crm-page-header">
         <div>
           <p className="crm-subtitle">
-            <Link href={`/admin/leads/${lead.id}`}>Lead</Link> / Deal aanmaken
+            <Link href={`/admin/leads/${lead.id}`}>Lead</Link> /{" "}
+            {isExistingDeal ? "Deal" : "Deal aanmaken"}
           </p>
           <h1 className="crm-title">Deal — {naam}</h1>
         </div>
@@ -184,270 +198,328 @@ export function DealPageClient({
           <Link href={`/admin/leads/${lead.id}`} className="crm-btn">
             Terug naar lead
           </Link>
-          <button
-            type="button"
-            className="crm-btn"
-            disabled={busy}
-            onClick={() => saveDeal(false)}
-          >
-            Deal opslaan
-          </button>
-          <button
-            type="button"
-            className="crm-btn crm-btn-primary"
-            disabled={busy}
-            onClick={() => saveDeal(true)}
-          >
-            Opslaan + contract PDF
-          </button>
+          {isExistingDeal && editing && (
+            <button
+              type="button"
+              className="crm-btn"
+              disabled={busy}
+              onClick={() => setEditing(false)}
+            >
+              Annuleren
+            </button>
+          )}
+          {isExistingDeal ? (
+            <button
+              type="button"
+              className="crm-btn crm-btn-primary"
+              disabled={busy}
+              onClick={() => saveDeal(true)}
+            >
+              Opslaan & opnieuw verzenden
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="crm-btn crm-btn-primary"
+              disabled={busy}
+              onClick={() => saveDeal(true)}
+            >
+              Maak contract PDF
+            </button>
+          )}
         </div>
       </div>
 
       {message && <div className="crm-toast">{message}</div>}
 
-      <div className="crm-two">
-        <div>
-          <div className="crm-card">
-            <div className="crm-card-head">Verkoper (klant)</div>
-            <div className="crm-card-body">
-              <div className="crm-form">
-                <label>
-                  Naam
-                  <input
-                    className="crm-input"
-                    value={naam}
-                    onChange={(e) => setNaam(e.target.value)}
-                  />
-                </label>
-                <label>
-                  E-mail
-                  <input
-                    className="crm-input"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Telefoon
-                  <input
-                    className="crm-input"
-                    value={telefoon}
-                    onChange={(e) => setTelefoon(e.target.value)}
-                  />
-                </label>
-
-                <div className="crm-postcode-row">
-                  <label>
-                    Postcode
-                    <input
-                      className="crm-input"
-                      value={postcode}
-                      onChange={(e) => setPostcode(e.target.value)}
-                      placeholder="1234AB"
-                    />
-                  </label>
-                  <label>
-                    Huisnr
-                    <input
-                      className="crm-input"
-                      value={huisnummer}
-                      onChange={(e) => setHuisnummer(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Toev.
-                    <input
-                      className="crm-input"
-                      value={toevoeging}
-                      onChange={(e) => setToevoeging(e.target.value)}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="crm-btn crm-btn-primary crm-postcode-btn"
-                    title="Adres ophalen via postcode"
-                    disabled={lookupBusy}
-                    onClick={lookupPostcode}
-                  >
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden
+      {isExistingDeal && !editing && (
+        <div className="crm-card" style={{ marginBottom: "1rem" }}>
+          <div className="crm-card-head">Deal</div>
+          <div
+            className="crm-table-wrap"
+            style={{ border: "none", boxShadow: "none" }}
+          >
+            <table className="crm-table">
+              <thead>
+                <tr>
+                  <th>Machine</th>
+                  <th>Koper</th>
+                  <th>Datum</th>
+                  <th>Inkoopprijs</th>
+                  <th>Marge</th>
+                  <th>Netto</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    {merk} {model}
+                  </td>
+                  <td>{selectedBuyer?.bedrijf ?? "—"}</td>
+                  <td>{dealDatum || "—"}</td>
+                  <td>{formatEuroK(lead.inkoopprijs)}</td>
+                  <td>{formatEuroK(lead.marge)}</td>
+                  <td>{formatEuroK(lead.nettoInkoopprijs)}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="crm-icon-btn"
+                      title="Deal bewerken"
+                      aria-label="Deal bewerken"
+                      onClick={() => setEditing(true)}
                     >
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                  </button>
-                </div>
+                      ✎
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-                <label>
-                  Straat
-                  <input
-                    className="crm-input"
-                    value={straat}
-                    onChange={(e) => setStraat(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Woonplaats
-                  <input
-                    className="crm-input"
-                    value={woonplaats}
-                    onChange={(e) => setWoonplaats(e.target.value)}
-                  />
-                </label>
+      {showForm && (
+        <div className="crm-two">
+          <div>
+            <div className="crm-card">
+              <div className="crm-card-head">Verkoper (klant)</div>
+              <div className="crm-card-body">
+                <div className="crm-form">
+                  <label>
+                    Naam
+                    <input
+                      className="crm-input"
+                      value={naam}
+                      onChange={(e) => setNaam(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Bedrijfsnaam (optioneel)
+                    <input
+                      className="crm-input"
+                      value={bedrijfsnaam}
+                      onChange={(e) => setBedrijfsnaam(e.target.value)}
+                      placeholder="Voor op het contract"
+                    />
+                  </label>
+                  <label>
+                    E-mail
+                    <input
+                      className="crm-input"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Telefoon
+                    <input
+                      className="crm-input"
+                      value={telefoon}
+                      onChange={(e) => setTelefoon(e.target.value)}
+                    />
+                  </label>
+                  <div className="crm-form-row">
+                    <label>
+                      Postcode
+                      <input
+                        className="crm-input"
+                        value={postcode}
+                        onChange={(e) => setPostcode(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Huisnr
+                      <input
+                        className="crm-input"
+                        value={huisnummer}
+                        onChange={(e) => setHuisnummer(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Toev.
+                      <input
+                        className="crm-input"
+                        value={toevoeging}
+                        onChange={(e) => setToevoeging(e.target.value)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="crm-btn crm-btn-primary"
+                      disabled={lookupBusy}
+                      onClick={lookupPostcode}
+                      title="Adres ophalen"
+                    >
+                      📍
+                    </button>
+                  </div>
+                  <label>
+                    Straat
+                    <input
+                      className="crm-input"
+                      value={straat}
+                      onChange={(e) => setStraat(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Woonplaats
+                    <input
+                      className="crm-input"
+                      value={woonplaats}
+                      onChange={(e) => setWoonplaats(e.target.value)}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="crm-card">
+              <div className="crm-card-head">Voertuig</div>
+              <div className="crm-card-body">
+                <div className="crm-form">
+                  <label>
+                    Merk
+                    <input
+                      className="crm-input"
+                      value={merk}
+                      onChange={(e) => setMerk(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Model
+                    <input
+                      className="crm-input"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Timing / toelichting
+                    <input
+                      className="crm-input"
+                      value={timing}
+                      onChange={(e) => setTiming(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Verkoopprijs-indicatie (optioneel)
+                    <input
+                      className="crm-input"
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={verkoopprijs}
+                      onChange={(e) => setVerkoopprijs(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Dealdatum
+                    <input
+                      className="crm-input"
+                      type="date"
+                      value={dealDatum}
+                      onChange={(e) => setDealDatum(e.target.value)}
+                    />
+                  </label>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="crm-card">
-            <div className="crm-card-head">Voertuig</div>
-            <div className="crm-card-body">
-              <div className="crm-form">
-                <label>
-                  Merk
-                  <input
-                    className="crm-input"
-                    value={merk}
-                    onChange={(e) => setMerk(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Model
-                  <input
-                    className="crm-input"
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Timing / toelichting
-                  <input
-                    className="crm-input"
-                    value={timing}
-                    onChange={(e) => setTiming(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Verkoopprijs indicatie (€)
-                  <input
-                    className="crm-input"
-                    type="number"
-                    value={verkoopprijs}
-                    onChange={(e) => setVerkoopprijs(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Dealdatum
-                  <input
-                    className="crm-input"
-                    type="date"
-                    value={dealDatum}
-                    onChange={(e) => setDealDatum(e.target.value)}
-                  />
-                </label>
+          <div>
+            <div className="crm-card">
+              <div className="crm-card-head">Koper (handelaar)</div>
+              <div className="crm-card-body">
+                <div className="crm-form">
+                  <label>
+                    Selecteer handelaar
+                    <select
+                      className="crm-select"
+                      value={buyerId}
+                      onChange={(e) => setBuyerId(e.target.value)}
+                    >
+                      <option value="">— Kies handelaar —</option>
+                      {buyers.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.bedrijf} ({b.naam})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedBuyer ? (
+                    <div className="crm-fields">
+                      <div className="crm-field">
+                        <label>Bedrijf</label>
+                        <div>{selectedBuyer.bedrijf}</div>
+                      </div>
+                      <div className="crm-field">
+                        <label>Contact</label>
+                        <div>{selectedBuyer.naam}</div>
+                      </div>
+                      <div className="crm-field">
+                        <label>E-mail</label>
+                        <div>{selectedBuyer.email ?? "—"}</div>
+                      </div>
+                      <div className="crm-field">
+                        <label>Telefoon</label>
+                        <div>{selectedBuyer.telefoon ?? "—"}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="crm-muted">
+                      Nog geen handelaar gekozen.{" "}
+                      <Link href="/admin/kopers">Beheer handelaren</Link>
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="crm-card">
+              <div className="crm-card-head">Bemiddelaar (wij)</div>
+              <div className="crm-card-body">
+                <div className="crm-fields">
+                  <div className="crm-field">
+                    <label>Bedrijf</label>
+                    <div>{company.legalName}</div>
+                  </div>
+                  <div className="crm-field">
+                    <label>Adres</label>
+                    <div>
+                      {company.street} {company.houseNumber}
+                      <br />
+                      {company.postcode} {company.city}
+                    </div>
+                  </div>
+                  <div className="crm-field">
+                    <label>KvK / BTW</label>
+                    <div>
+                      {company.kvk} / {company.btw}
+                    </div>
+                  </div>
+                  <div className="crm-field">
+                    <label>Contact</label>
+                    <div>
+                      {company.email}
+                      <br />
+                      {company.phone}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="crm-card">
+              <div className="crm-card-head">Financieel</div>
+              <div className="crm-card-body">
+                <FinanceCalcFields finance={finance} />
               </div>
             </div>
           </div>
         </div>
-
-        <div>
-          <div className="crm-card">
-            <div className="crm-card-head">Koper (handelaar)</div>
-            <div className="crm-card-body">
-              <div className="crm-form">
-                <label>
-                  Selecteer handelaar
-                  <select
-                    className="crm-select"
-                    value={buyerId}
-                    onChange={(e) => setBuyerId(e.target.value)}
-                  >
-                    <option value="">— Kies handelaar —</option>
-                    {buyers.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.bedrijf} ({b.naam})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {selectedBuyer ? (
-                  <div className="crm-fields">
-                    <div className="crm-field">
-                      <label>Bedrijf</label>
-                      <div>{selectedBuyer.bedrijf}</div>
-                    </div>
-                    <div className="crm-field">
-                      <label>Contact</label>
-                      <div>{selectedBuyer.naam}</div>
-                    </div>
-                    <div className="crm-field">
-                      <label>E-mail</label>
-                      <div>{selectedBuyer.email ?? "—"}</div>
-                    </div>
-                    <div className="crm-field">
-                      <label>Telefoon</label>
-                      <div>{selectedBuyer.telefoon ?? "—"}</div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="crm-muted">
-                    Nog geen handelaar gekozen.{" "}
-                    <Link href="/admin/kopers">Beheer handelaren</Link>
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="crm-card">
-            <div className="crm-card-head">Bemiddelaar (wij)</div>
-            <div className="crm-card-body">
-              <div className="crm-fields">
-                <div className="crm-field">
-                  <label>Bedrijf</label>
-                  <div>{company.legalName}</div>
-                </div>
-                <div className="crm-field">
-                  <label>Adres</label>
-                  <div>
-                    {company.street} {company.houseNumber}
-                    <br />
-                    {company.postcode} {company.city}
-                  </div>
-                </div>
-                <div className="crm-field">
-                  <label>KvK / BTW</label>
-                  <div>
-                    {company.kvk} / {company.btw}
-                  </div>
-                </div>
-                <div className="crm-field">
-                  <label>Contact</label>
-                  <div>
-                    {company.email}
-                    <br />
-                    {company.phone}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="crm-card">
-            <div className="crm-card-head">Financieel</div>
-            <div className="crm-card-body">
-              <FinanceCalcFields finance={finance} />
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
     </>
   );
 }

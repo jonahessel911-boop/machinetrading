@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ClickableRow } from "@/components/admin/ClickableRow";
+import type { Invoice } from "@/lib/invoices";
+import { INVOICE_STATUS_LABELS } from "@/lib/invoices";
 import type { BuyerDealPoint } from "@/lib/period-data";
 import {
   PERIOD_PRESETS,
@@ -26,12 +28,15 @@ type Buyer = {
 export function KoperDetailClient({
   buyer: initialBuyer,
   deals,
+  initialInvoices,
 }: {
   buyer: Buyer;
   deals: BuyerDealPoint[];
+  initialInvoices: Invoice[];
 }) {
   const router = useRouter();
   const [buyer, setBuyer] = useState(initialBuyer);
+  const [invoices, setInvoices] = useState(initialInvoices);
   const [period, setPeriod] = useState<PeriodPreset>("all");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -109,6 +114,62 @@ export function KoperDetailClient({
     await fetch(`/api/admin/buyers/${buyer.id}`, { method: "DELETE" });
     router.push("/admin/kopers");
     router.refresh();
+  }
+
+  async function sendInvoice(invoiceId: string) {
+    if (
+      !confirm(
+        "Factuur versturen naar de koper? Doe dit pas nadat de heftruck is opgehaald.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/admin/invoices/${invoiceId}/send`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Versturen mislukt");
+      setInvoices((prev) =>
+        prev.map((inv) => (inv.id === invoiceId ? data.invoice : inv)),
+      );
+      setMessage(
+        `Factuur ${data.invoice.invoiceNumber} verstuurd naar ${data.email.to}.`,
+      );
+      router.refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Fout");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadInvoicePdf(invoiceId: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/admin/invoices/${invoiceId}/pdf`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Download mislukt");
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get("Content-Disposition") || "";
+      const match = /filename="([^"]+)"/.exec(dispo);
+      const filename = match?.[1] || `factuur-${invoiceId}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Fout");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -273,6 +334,82 @@ export function KoperDetailClient({
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={6}>Geen deals in deze periode.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="crm-card" style={{ marginTop: "1rem" }}>
+        <div className="crm-card-head">
+          Facturen · {invoices.length}
+        </div>
+        <div className="crm-card-body" style={{ paddingBottom: 0 }}>
+          <p className="crm-muted" style={{ marginTop: 0 }}>
+            Drafts ontstaan automatisch bij een koopovereenkomst. Factuurbedrag
+            = marge (omzet). Verstuur pas nadat de heftruck is opgehaald.
+          </p>
+        </div>
+        <div
+          className="crm-table-wrap"
+          style={{ border: "none", boxShadow: "none" }}
+        >
+          <table className="crm-table">
+            <thead>
+              <tr>
+                <th>Nummer</th>
+                <th>Datum</th>
+                <th>Status</th>
+                <th>Bedrag (marge)</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((inv) => (
+                <tr key={inv.id}>
+                  <td>{inv.invoiceNumber}</td>
+                  <td>{inv.issueDate}</td>
+                  <td>{INVOICE_STATUS_LABELS[inv.status]}</td>
+                  <td>
+                    <strong>{formatEuro(inv.amountExBtw)}</strong>
+                    <div className="crm-muted" style={{ fontSize: "0.8rem" }}>
+                      incl. BTW {formatEuro(inv.amountIncBtw)}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="crm-actions" style={{ margin: 0, gap: "0.4rem" }}>
+                      <button
+                        type="button"
+                        className="crm-icon-btn"
+                        title={
+                          inv.status === "concept"
+                            ? "Download factuur-draft PDF"
+                            : "Download factuur PDF"
+                        }
+                        aria-label="Download factuur PDF"
+                        disabled={busy}
+                        onClick={() => downloadInvoicePdf(inv.id)}
+                      >
+                        ⬇
+                      </button>
+                      {inv.status === "concept" && (
+                        <button
+                          type="button"
+                          className="crm-btn crm-btn-primary"
+                          disabled={busy}
+                          onClick={() => sendInvoice(inv.id)}
+                        >
+                          Send
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {invoices.length === 0 && (
+                <tr>
+                  <td colSpan={5}>Nog geen facturen voor deze koper.</td>
                 </tr>
               )}
             </tbody>

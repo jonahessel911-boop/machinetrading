@@ -183,6 +183,7 @@ export async function crmCreateLead(
       verkoopprijs: null,
       netto_inkoopprijs: null,
       deal_datum: null,
+      bedrijfsnaam: null,
       buyer_id: null,
       created_at: now,
       updated_at: now,
@@ -274,6 +275,21 @@ export async function crmCreateBuyer(input: {
   dealerUsername?: string | null;
   dealerPassword?: string | null;
   dealerEnabled?: boolean;
+  invoice?: {
+    invoiceBedrijf?: string | null;
+    invoiceContact?: string | null;
+    invoiceEmail?: string | null;
+    invoiceTelefoon?: string | null;
+    invoiceStraat?: string | null;
+    invoiceHuisnummer?: string | null;
+    invoicePostcode?: string | null;
+    invoiceWoonplaats?: string | null;
+    invoiceLand?: string | null;
+    invoiceKvk?: string | null;
+    invoiceBtw?: string | null;
+    invoiceIban?: string | null;
+    invoiceBic?: string | null;
+  };
 }): Promise<Buyer> {
   const { hashPassword } = await import("./password");
   const username = input.dealerUsername?.trim() || null;
@@ -282,6 +298,23 @@ export async function crmCreateBuyer(input: {
       ? hashPassword(input.dealerPassword)
       : null;
   const enabled = Boolean(username && passwordHash && input.dealerEnabled !== false);
+  const inv = input.invoice;
+
+  const invoiceCols = {
+    invoice_bedrijf: inv?.invoiceBedrijf?.trim() || input.bedrijf,
+    invoice_contact: inv?.invoiceContact?.trim() || input.naam,
+    invoice_email: inv?.invoiceEmail?.trim() || input.email || null,
+    invoice_telefoon: inv?.invoiceTelefoon?.trim() || input.telefoon || null,
+    invoice_straat: inv?.invoiceStraat?.trim() || null,
+    invoice_huisnummer: inv?.invoiceHuisnummer?.trim() || null,
+    invoice_postcode: inv?.invoicePostcode?.trim() || null,
+    invoice_woonplaats: inv?.invoiceWoonplaats?.trim() || null,
+    invoice_land: inv?.invoiceLand?.trim() || "Nederland",
+    invoice_kvk: inv?.invoiceKvk?.trim() || null,
+    invoice_btw: inv?.invoiceBtw?.trim() || null,
+    invoice_iban: inv?.invoiceIban?.trim() || null,
+    invoice_bic: inv?.invoiceBic?.trim() || null,
+  };
 
   if (isDemoMode()) {
     const store = getDemoStore();
@@ -303,6 +336,7 @@ export async function crmCreateBuyer(input: {
       dealer_enabled: enabled,
       created_at: now,
       updated_at: now,
+      ...invoiceCols,
     };
     store.buyers.unshift(row);
     return mapBuyer(row);
@@ -319,6 +353,7 @@ export async function crmCreateBuyer(input: {
       dealer_username: username,
       dealer_password_hash: passwordHash,
       dealer_enabled: enabled,
+      ...invoiceCols,
     })
     .select("*")
     .single();

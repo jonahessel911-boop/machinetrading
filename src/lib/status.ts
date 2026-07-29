@@ -22,22 +22,23 @@ export function formatEuro(value: number | null | undefined): string {
   }).format(value);
 }
 
-/** Compact: €23.8k / €0.9k / €1.2M — 1 decimaal, niet afronden naar hele euro’s */
+/** Compact: €23.8k / €6k / €1.2M — max. 2 decimalen */
 export function formatEuroK(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "—";
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";
+  if (abs === 0) return "€0";
   if (abs >= 1_000_000) {
     const m = abs / 1_000_000;
     return `${sign}€${m.toLocaleString("nl-NL", {
       minimumFractionDigits: 0,
-      maximumFractionDigits: 1,
+      maximumFractionDigits: 2,
     })}M`;
   }
   const k = abs / 1000;
   return `${sign}€${k.toLocaleString("nl-NL", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 1,
+    maximumFractionDigits: 2,
   })}k`;
 }
 

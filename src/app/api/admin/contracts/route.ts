@@ -8,6 +8,8 @@ import {
   crmInsertContract,
   crmUpdateLead,
 } from "@/lib/crm";
+import { crmEnsureDraftInvoiceForDeal } from "@/lib/invoices";
+import { mpUnpublishForLead } from "@/lib/marketplace-data";
 
 export async function POST(request: Request) {
   if (!(await isAuthenticated())) {
@@ -74,6 +76,7 @@ export async function POST(request: Request) {
         timing: lead.timing,
         inkoopprijs: lead.inkoopprijs,
         dealDatum: lead.deal_datum,
+        bedrijfsnaam: lead.bedrijfsnaam ?? null,
       },
       {
         naam: buyer.naam,
@@ -89,6 +92,18 @@ export async function POST(request: Request) {
       buyerId: buyer.id,
     });
 
+    await mpUnpublishForLead(lead.id);
+
+    const machine = [lead.merk, lead.model].filter(Boolean).join(" ").trim();
+    const draftInvoice = await crmEnsureDraftInvoiceForDeal({
+      buyerId: buyer.id,
+      leadId: lead.id,
+      amountExBtw: Number(lead.marge) || 0,
+      description: machine
+        ? `Bemiddelingsfee deal ${machine}`
+        : `Bemiddelingsfee deal ${lead.naam}`,
+    });
+
     const safeName = [lead.merk, lead.model]
       .filter(Boolean)
       .join("-")
@@ -100,6 +115,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="Koopovereenkomst-${safeName || contract.id}.pdf"`,
         "X-Contract-Id": contract.id,
+        ...(draftInvoice ? { "X-Invoice-Id": draftInvoice.id } : {}),
       },
     });
   } catch (err) {

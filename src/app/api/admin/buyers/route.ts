@@ -51,6 +51,23 @@ export async function POST(request: Request) {
         ? String(body.dealerPassword)
         : null,
       dealerEnabled: body.dealerEnabled !== false,
+      invoice: body.invoice
+        ? {
+            invoiceBedrijf: body.invoice.invoiceBedrijf,
+            invoiceContact: body.invoice.invoiceContact,
+            invoiceEmail: body.invoice.invoiceEmail,
+            invoiceTelefoon: body.invoice.invoiceTelefoon,
+            invoiceStraat: body.invoice.invoiceStraat,
+            invoiceHuisnummer: body.invoice.invoiceHuisnummer,
+            invoicePostcode: body.invoice.invoicePostcode,
+            invoiceWoonplaats: body.invoice.invoiceWoonplaats,
+            invoiceLand: body.invoice.invoiceLand,
+            invoiceKvk: body.invoice.invoiceKvk,
+            invoiceBtw: body.invoice.invoiceBtw,
+            invoiceIban: body.invoice.invoiceIban,
+            invoiceBic: body.invoice.invoiceBic,
+          }
+        : undefined,
     });
     return NextResponse.json(buyer);
   } catch (err) {

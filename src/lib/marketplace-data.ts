@@ -323,6 +323,36 @@ export async function mpUnpublish(listingId: string): Promise<MarketplaceListing
   return mpHydrateListing(data as MarketplaceListingRow);
 }
 
+/** Trek alle actieve veilingen voor een lead in (na koopovereenkomst). */
+export async function mpUnpublishForLead(leadId: string): Promise<number> {
+  if (isDemoMode()) {
+    const store = getDemoStore();
+    const now = new Date().toISOString();
+    let count = 0;
+    for (const l of store.listings) {
+      if (l.lead_id === leadId && l.status === "actief") {
+        l.status = "ingetrokken";
+        l.updated_at = now;
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("marketplace_listings")
+    .update({
+      status: "ingetrokken",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("lead_id", leadId)
+    .eq("status", "actief")
+    .select("id");
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
+}
+
 export async function mpPlaceBid(input: {
   slug: string;
   bidderNaam: string;

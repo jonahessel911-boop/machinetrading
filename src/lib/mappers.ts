@@ -31,6 +31,8 @@ export type LeadRow = {
   verkoopprijs: number | null;
   netto_inkoopprijs: number | null;
   deal_datum: string | null;
+  /** Optionele bedrijfsnaam verkoper (koopcontract) */
+  bedrijfsnaam?: string | null;
   buyer_id: string | null;
   created_at: string;
   updated_at: string;
@@ -114,6 +116,8 @@ export type Lead = {
   verkoopprijs: number | null;
   nettoInkoopprijs: number | null;
   dealDatum: string | null;
+  /** Optionele bedrijfsnaam verkoper */
+  bedrijfsnaam: string | null;
   buyerId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -193,6 +197,7 @@ export function mapLead(
     verkoopprijs: row.verkoopprijs ?? null,
     nettoInkoopprijs: row.netto_inkoopprijs ?? null,
     dealDatum: row.deal_datum ?? null,
+    bedrijfsnaam: row.bedrijfsnaam ?? null,
     buyerId: row.buyer_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

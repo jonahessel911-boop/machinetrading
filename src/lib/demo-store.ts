@@ -9,6 +9,7 @@ import type {
   MarketplaceListingRow,
   MarketplaceShareRow,
 } from "./marketplace";
+import type { InvoiceRow } from "./invoices";
 import { isSupabaseConfigured } from "./supabase";
 
 export type DemoStore = {
@@ -20,6 +21,7 @@ export type DemoStore = {
   bids: MarketplaceBidRow[];
   shares: MarketplaceShareRow[];
   periodCosts: PeriodCostRow[];
+  invoices: InvoiceRow[];
 };
 
 export type PeriodCostRow = {
@@ -37,7 +39,7 @@ const g = globalThis as unknown as {
   __hvDemoStoreVersion?: number;
 };
 
-const DEMO_STORE_VERSION = 6;
+const DEMO_STORE_VERSION = 7;
 
 function emptyStore(): DemoStore {
   return {
@@ -49,6 +51,7 @@ function emptyStore(): DemoStore {
     bids: [],
     shares: [],
     periodCosts: [],
+    invoices: [],
   };
 }
 
@@ -62,6 +65,7 @@ export function getDemoStore(): DemoStore {
     !g.__hvDemoStore.listings ||
     !Array.isArray(g.__hvDemoStore.periodCosts) ||
     !Array.isArray(g.__hvDemoStore.bids) ||
+    !Array.isArray(g.__hvDemoStore.invoices) ||
     g.__hvDemoStoreVersion !== DEMO_STORE_VERSION
   ) {
     g.__hvDemoStore = emptyStore();

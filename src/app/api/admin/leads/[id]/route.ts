@@ -124,6 +124,11 @@ export async function PATCH(request: Request, { params }: Params) {
       const v = body.dealDatum ?? body.deal_datum;
       patch.deal_datum = v || null;
     }
+    if ("bedrijfsnaam" in body) {
+      patch.bedrijfsnaam = body.bedrijfsnaam
+        ? String(body.bedrijfsnaam).trim()
+        : null;
+    }
     if ("naam" in body) patch.naam = String(body.naam).trim();
     if ("email" in body) patch.email = String(body.email).trim();
     if ("telefoon" in body) patch.telefoon = String(body.telefoon).trim();

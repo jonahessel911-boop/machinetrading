@@ -2,14 +2,23 @@
 
 import { useState } from "react";
 import type { DayMetrics } from "@/lib/period-report";
-import { formatEuro } from "@/lib/status";
+import { formatEuroK } from "@/lib/status";
 
 function money(n: number) {
-  return formatEuro(n);
+  return formatEuroK(n);
 }
 
 function omzetPerDeal(node: DayMetrics) {
   return node.deals > 0 ? node.omzet / node.deals : 0;
+}
+
+function formatPct(n: number) {
+  if (!Number.isFinite(n) || n === 0) return "0%";
+  const rounded = Math.round(n * 10) / 10;
+  return `${rounded.toLocaleString("nl-NL", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  })}%`;
 }
 
 function Row({
@@ -25,6 +34,8 @@ function Row({
 }) {
   const hasChildren = (node.children?.length ?? 0) > 0;
   const isOpen = open.has(node.key);
+  const winstClass =
+    node.winst > 0 ? "dash-value-profit" : "dash-value-loss";
 
   return (
     <>
@@ -46,12 +57,15 @@ function Row({
             {node.isCurrent && <span className="po-badge">Huidig</span>}
           </div>
         </td>
+        <td>{node.leads}</td>
+        <td>{node.deals}</td>
+        <td>{formatPct(node.conversiePct)}</td>
         <td>{money(node.bemVol)}</td>
         <td>{money(node.omzet)}</td>
-        <td>{node.deals}</td>
         <td>{money(omzetPerDeal(node))}</td>
         <td>{money(node.salesCost)}</td>
         <td>{money(node.adSpend)}</td>
+        <td className={winstClass}>{money(node.winst)}</td>
       </tr>
       {hasChildren &&
         isOpen &&
@@ -97,12 +111,15 @@ export function PeriodOverview({
           <thead>
             <tr>
               <th>Periode</th>
+              <th>Leads</th>
+              <th>Deals</th>
+              <th>Conversie</th>
               <th>Bem. Vol</th>
               <th>Omzet</th>
-              <th>Deals</th>
               <th>Omzet / deal</th>
               <th>Sales kosten</th>
               <th>Ad spend</th>
+              <th>Winst</th>
             </tr>
           </thead>
           <tbody>
@@ -117,7 +134,7 @@ export function PeriodOverview({
             ))}
             {tree.length === 0 && (
               <tr>
-                <td colSpan={7}>Nog geen deals of kosten in een periode.</td>
+                <td colSpan={10}>Nog geen leads, deals of kosten in een periode.</td>
               </tr>
             )}
           </tbody>

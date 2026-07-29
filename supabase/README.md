@@ -11,6 +11,8 @@ Open je Supabase project → **SQL Editor** → plak en run **in deze volgorde**
 5. [`006_marketplace.sql`](./migrations/006_marketplace.sql) — marketplace listings + bids
 6. [`007_dealer_accounts.sql`](./migrations/007_dealer_accounts.sql) — dealer-login op buyers
 7. [`008_period_costs.sql`](./migrations/008_period_costs.sql) — ad spend / sales cost per dag
+8. [`009_dealer_invoices.sql`](./migrations/009_dealer_invoices.sql) — factuurgegevens + facturen
+9. [`010_lead_bedrijfsnaam.sql`](./migrations/010_lead_bedrijfsnaam.sql) — optionele bedrijfsnaam verkoper
 
 ## Optioneel
 

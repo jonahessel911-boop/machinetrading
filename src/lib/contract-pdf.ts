@@ -27,6 +27,8 @@ export type ContractLead = {
   /** Bruto = enige prijs in contract (klant ontvangt dit) */
   inkoopprijs: number | null;
   dealDatum?: string | null;
+  /** Optionele bedrijfsnaam verkoper */
+  bedrijfsnaam?: string | null;
 };
 
 export type ContractBuyer = {
@@ -378,6 +380,7 @@ export async function buildContractPdf(
   const gap = 10;
   const boxW = (CONTENT_W - gap * 2) / 3;
   const verkoperLines = [
+    lead.bedrijfsnaam?.trim() || "",
     lead.naam,
     lead.telefoon,
     lead.email,
@@ -430,7 +433,7 @@ export async function buildContractPdf(
   drawSpecRow(ctx, "Locatie", lead.woonplaats || "—");
   drawSpecRow(ctx, "Adres", addressLine(lead) || "—");
   drawSpecRow(ctx, "Beschikbaarheid / timing", lead.timing || "—");
-  drawSpecRow(ctx, "Overeengekomen prijs (bruto)", prijs);
+  drawSpecRow(ctx, "Overeengekomen prijs", prijs);
   ctx.y -= 8;
 
   drawSectionTitle(ctx, "Voorwaarden");
@@ -506,55 +509,7 @@ export async function buildContractPdf(
     { size: 9, color: muted },
   );
 
-  // Signatures
-  ensureSpace(ctx, 110);
   ctx.y -= 10;
-  drawSectionTitle(ctx, "Ondertekening");
-  const sigW = (CONTENT_W - 20) / 2;
-  const sigTop = ctx.y;
-  ctx.page.drawText("Handtekening verkoper", {
-    x: MARGIN_X,
-    y: sigTop,
-    size: 9,
-    font: ctx.bold,
-    color: dark,
-  });
-  ctx.page.drawText(lead.naam, {
-    x: MARGIN_X,
-    y: sigTop - 14,
-    size: 9,
-    font: ctx.font,
-    color: muted,
-  });
-  ctx.page.drawLine({
-    start: { x: MARGIN_X, y: sigTop - 55 },
-    end: { x: MARGIN_X + sigW - 10, y: sigTop - 55 },
-    thickness: 1,
-    color: line,
-  });
-
-  ctx.page.drawText("Handtekening koper", {
-    x: MARGIN_X + sigW + 20,
-    y: sigTop,
-    size: 9,
-    font: ctx.bold,
-    color: dark,
-  });
-  ctx.page.drawText(buyer.bedrijf, {
-    x: MARGIN_X + sigW + 20,
-    y: sigTop - 14,
-    size: 9,
-    font: ctx.font,
-    color: muted,
-  });
-  ctx.page.drawLine({
-    start: { x: MARGIN_X + sigW + 20, y: sigTop - 55 },
-    end: { x: MARGIN_X + CONTENT_W, y: sigTop - 55 },
-    thickness: 1,
-    color: line,
-  });
-
-  ctx.y = sigTop - 80;
   drawText(ctx, `Bemiddelaar: ${company.name} · ${company.phone} · ${company.email}`, {
     size: 8,
     color: muted,

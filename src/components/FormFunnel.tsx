@@ -412,10 +412,6 @@ export function FormFunnel() {
                     )}
                   </div>
                 )}
-
-                <Link href="/" className="form-next">
-                  Terug naar home
-                </Link>
               </div>
             )}
           </div>

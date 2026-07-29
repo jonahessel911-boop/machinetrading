@@ -3,6 +3,7 @@ import { AdminChrome } from "@/components/admin/AdminChrome";
 import { KoperDetailClient } from "@/components/admin/KoperDetailClient";
 import { isAuthenticated } from "@/lib/auth";
 import { crmListBuyersSimple, isDemoMode } from "@/lib/crm";
+import { crmListInvoicesForBuyer } from "@/lib/invoices";
 import { crmBuyerDealPoints } from "@/lib/period-data";
 
 export default async function KoperDetailPage({
@@ -13,9 +14,10 @@ export default async function KoperDetailPage({
   if (!(await isAuthenticated())) redirect("/admin/login");
 
   const { id } = await params;
-  const [buyers, deals] = await Promise.all([
+  const [buyers, deals, invoices] = await Promise.all([
     crmListBuyersSimple(),
     crmBuyerDealPoints(),
+    crmListInvoicesForBuyer(id),
   ]);
 
   const buyer = buyers.find((b) => b.id === id);
@@ -29,7 +31,11 @@ export default async function KoperDetailPage({
 
   return (
     <AdminChrome demo={isDemoMode()}>
-      <KoperDetailClient buyer={buyer} deals={deals} />
+      <KoperDetailClient
+        buyer={buyer}
+        deals={deals}
+        initialInvoices={invoices}
+      />
     </AdminChrome>
   );
 }

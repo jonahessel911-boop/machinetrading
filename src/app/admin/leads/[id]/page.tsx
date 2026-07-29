@@ -2,11 +2,7 @@ import { redirect } from "next/navigation";
 import { AdminChrome } from "@/components/admin/AdminChrome";
 import { LeadDetailClient } from "@/components/admin/LeadDetailClient";
 import { isAuthenticated } from "@/lib/auth";
-import {
-  crmGetLead,
-  crmListBuyersSimple,
-  isDemoMode,
-} from "@/lib/crm";
+import { crmGetLead, isDemoMode } from "@/lib/crm";
 import { mpGetByLeadId } from "@/lib/marketplace-data";
 
 export default async function LeadDetailPage({
@@ -17,9 +13,8 @@ export default async function LeadDetailPage({
   if (!(await isAuthenticated())) redirect("/admin/login");
 
   const { id } = await params;
-  const [lead, buyers, listing] = await Promise.all([
+  const [lead, listing] = await Promise.all([
     crmGetLead(id),
-    crmListBuyersSimple(),
     mpGetByLeadId(id),
   ]);
 
@@ -35,7 +30,6 @@ export default async function LeadDetailPage({
     <AdminChrome demo={isDemoMode()}>
       <LeadDetailClient
         initialLead={lead}
-        buyers={buyers}
         initialListing={listing}
       />
     </AdminChrome>

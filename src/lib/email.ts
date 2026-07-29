@@ -107,6 +107,63 @@ export function marketplaceShareEmail(opts: {
   return { subject, text, html };
 }
 
+export function invoiceSendEmail(opts: {
+  toName: string;
+  invoiceNumber: string;
+  description: string | null;
+  amountExBtw: number;
+  btwPct: number;
+  btwAmount: number;
+  amountIncBtw: number;
+  issueDate: string;
+  dueDate: string | null;
+}): { subject: string; text: string; html: string } {
+  const company = getCompanyInfo();
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("nl-NL", {
+      style: "currency",
+      currency: "EUR",
+    }).format(n);
+  const subject = `Factuur ${opts.invoiceNumber} – ${company.name}`;
+  const lines = [
+    `Beste ${opts.toName},`,
+    "",
+    `Hierbij ontvangt u factuur ${opts.invoiceNumber} van ${company.legalName}.`,
+    "",
+    opts.description ? `Omschrijving: ${opts.description}` : null,
+    `Factuurdatum: ${opts.issueDate}`,
+    opts.dueDate ? `Vervaldatum: ${opts.dueDate}` : null,
+    "",
+    `Bedrag excl. BTW: ${fmt(opts.amountExBtw)}`,
+    `BTW (${opts.btwPct}%): ${fmt(opts.btwAmount)}`,
+    `Totaal incl. BTW: ${fmt(opts.amountIncBtw)}`,
+    "",
+    "Met vriendelijke groet,",
+    company.legalName,
+    company.phone,
+    company.email,
+  ].filter((l): l is string => l != null);
+
+  const text = lines.join("\n");
+  const html = `
+    <div style="font-family:Segoe UI,sans-serif;color:#181818;line-height:1.5">
+      <p>Beste ${escapeHtml(opts.toName)},</p>
+      <p>Hierbij ontvangt u factuur <strong>${escapeHtml(opts.invoiceNumber)}</strong> van ${escapeHtml(company.legalName)}.</p>
+      <table style="border-collapse:collapse;margin:16px 0;font-size:14px">
+        ${opts.description ? `<tr><td style="padding:4px 12px 4px 0;color:#706e6b">Omschrijving</td><td>${escapeHtml(opts.description)}</td></tr>` : ""}
+        <tr><td style="padding:4px 12px 4px 0;color:#706e6b">Factuurdatum</td><td>${escapeHtml(opts.issueDate)}</td></tr>
+        ${opts.dueDate ? `<tr><td style="padding:4px 12px 4px 0;color:#706e6b">Vervaldatum</td><td>${escapeHtml(opts.dueDate)}</td></tr>` : ""}
+        <tr><td style="padding:4px 12px 4px 0;color:#706e6b">Excl. BTW</td><td>${escapeHtml(fmt(opts.amountExBtw))}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#706e6b">BTW (${opts.btwPct}%)</td><td>${escapeHtml(fmt(opts.btwAmount))}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#706e6b;font-weight:700">Totaal</td><td style="font-weight:700">${escapeHtml(fmt(opts.amountIncBtw))}</td></tr>
+      </table>
+      <p style="color:#706e6b;font-size:13px">${escapeHtml(company.legalName)} · ${escapeHtml(company.phone)} · ${escapeHtml(company.email)}</p>
+    </div>
+  `;
+
+  return { subject, text, html };
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
