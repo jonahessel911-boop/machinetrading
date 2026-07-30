@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SALES_REPS } from "@/lib/constants";
 import {
   buildPeriodTree,
@@ -102,7 +102,7 @@ function Row({
 export function PeriodOverview({
   deals,
   leads,
-  costs,
+  costs: initialCosts,
 }: {
   deals: DealPoint[];
   leads: LeadPoint[];
@@ -113,6 +113,14 @@ export function PeriodOverview({
 }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const [costs, setCosts] = useState(initialCosts);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
+  const [daysBack, setDaysBack] = useState(30);
+
+  useEffect(() => {
+    setCosts(initialCosts);
+  }, [initialCosts]);
 
   const repOptions = useMemo(() => {
     const names = new Set<string>(SALES_REPS);
@@ -134,7 +142,6 @@ export function PeriodOverview({
     const filteredLeads = leads.filter((l) =>
       matchesRep(l.verkoopmedewerker, selected),
     );
-    // Kosten zijn niet per medewerker — alleen tonen bij "Alles"
     const filteredCosts = selected.size === 0 ? costs : [];
     return buildPeriodTree(filteredDeals, filteredCosts, filteredLeads);
   }, [deals, leads, costs, selected]);
@@ -161,6 +168,31 @@ export function PeriodOverview({
     });
   }
 
+  async function syncMetaAds() {
+    setSyncBusy(true);
+    setSyncMsg("");
+    try {
+      const res = await fetch("/api/admin/meta-ads/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ daysBack }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sync mislukt");
+      if (Array.isArray(data.costs)) setCosts(data.costs);
+      const accountNames = (data.accounts ?? [])
+        .map((a: { name: string }) => a.name)
+        .join(", ");
+      setSyncMsg(
+        `Meta Ads gesynchroniseerd: ${data.updated ?? 0} dagen · ${formatEuroK(data.totalSpend ?? 0)} spend${accountNames ? ` · ${accountNames}` : ""}`,
+      );
+    } catch (err) {
+      setSyncMsg(err instanceof Error ? err.message : "Sync mislukt");
+    } finally {
+      setSyncBusy(false);
+    }
+  }
+
   const filterLabel =
     selected.size === 0
       ? "Alle medewerkers"
@@ -170,8 +202,45 @@ export function PeriodOverview({
     <div className="crm-card">
       <div className="crm-card-head">Periode overzicht</div>
       <div className="crm-card-body po-filters">
+        <div className="po-meta-sync">
+          <div>
+            <div className="po-filter-label">Meta Ads spend</div>
+            <p className="crm-muted po-filter-hint" style={{ marginTop: 0 }}>
+              Haalt ad spend op via je Meta access token en vult de rapportage.
+            </p>
+          </div>
+          <div className="po-meta-sync-actions">
+            <select
+              className="crm-select"
+              value={daysBack}
+              disabled={syncBusy}
+              onChange={(e) => setDaysBack(Number(e.target.value))}
+              aria-label="Aantal dagen terug"
+            >
+              <option value={7}>Laatste 7 dagen</option>
+              <option value={14}>Laatste 14 dagen</option>
+              <option value={30}>Laatste 30 dagen</option>
+              <option value={60}>Laatste 60 dagen</option>
+              <option value={90}>Laatste 90 dagen</option>
+            </select>
+            <button
+              type="button"
+              className="crm-btn crm-btn-primary"
+              disabled={syncBusy}
+              onClick={syncMetaAds}
+            >
+              {syncBusy ? "Bezig…" : "Sync Meta Ads"}
+            </button>
+          </div>
+        </div>
+        {syncMsg && <p className="crm-muted po-filter-hint">{syncMsg}</p>}
+
         <div className="po-filter-label">Verkoopmedewerker</div>
-        <div className="po-filter-chips" role="group" aria-label="Filter verkoopmedewerker">
+        <div
+          className="po-filter-chips"
+          role="group"
+          aria-label="Filter verkoopmedewerker"
+        >
           <button
             type="button"
             className={`po-chip${selected.size === 0 ? " is-active" : ""}`}

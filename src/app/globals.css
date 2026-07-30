@@ -2791,6 +2791,28 @@ textarea.crm-input {
   font-size: 0.82rem;
 }
 
+.po-meta-sync {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid #ecebea;
+}
+
+.po-meta-sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.po-meta-sync-actions .crm-select {
+  min-width: 10rem;
+}
+
 .po-table th,
 .po-table td {
   white-space: nowrap;

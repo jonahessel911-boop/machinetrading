@@ -300,3 +300,89 @@ export async function crmUpsertPeriodCost(input: {
   if (error || !data) throw new Error(error?.message ?? "Opslaan mislukt");
   return data as PeriodCostRow;
 }
+
+/** Update alleen ad spend; behoud bestaande sales_cost. */
+export async function crmUpsertAdSpendOnly(input: {
+  date: string;
+  adSpend: number;
+  note?: string | null;
+}): Promise<PeriodCostRow> {
+  const date = input.date.slice(0, 10);
+  const adSpend = Math.max(0, Number(input.adSpend) || 0);
+
+  if (isDemoMode()) {
+    const store = getDemoStore();
+    const existing = store.periodCosts.find((c) => c.cost_date === date);
+    const salesCost = existing?.sales_cost ?? 0;
+    return crmUpsertPeriodCost({
+      date,
+      adSpend,
+      salesCost,
+      note: input.note ?? existing?.note ?? "Meta Ads sync",
+    });
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data: existing } = await supabase
+    .from("period_costs")
+    .select("*")
+    .eq("cost_date", date)
+    .maybeSingle();
+
+  const salesCost =
+    existing && typeof (existing as PeriodCostRow).sales_cost === "number"
+      ? Number((existing as PeriodCostRow).sales_cost) || 0
+      : 0;
+
+  return crmUpsertPeriodCost({
+    date,
+    adSpend,
+    salesCost,
+    note:
+      input.note ??
+      (existing as PeriodCostRow | null)?.note ??
+      "Meta Ads sync",
+  });
+}
+
+export async function crmSyncMetaAdSpend(opts?: {
+  daysBack?: number;
+}): Promise<{
+  accounts: { id: string; name: string; currency: string | null }[];
+  updated: number;
+  totalSpend: number;
+  currency: string | null;
+  days: { date: string; spend: number }[];
+  costs: CostPoint[];
+}> {
+  const { fetchMetaDailyAdSpend } = await import("./meta-ads");
+  const { accounts, days, currency } = await fetchMetaDailyAdSpend({
+    daysBack: opts?.daysBack ?? 30,
+  });
+
+  let updated = 0;
+  let totalSpend = 0;
+  for (const day of days) {
+    totalSpend += day.spend;
+    await crmUpsertAdSpendOnly({
+      date: day.date,
+      adSpend: day.spend,
+      note: `Meta Ads sync (${accounts.map((a) => a.name).join(", ")})`,
+    });
+    updated += 1;
+  }
+
+  const series = await crmDashboardSeries();
+  return {
+    accounts: accounts.map((a) => ({
+      id: a.id,
+      name: a.name,
+      currency: a.currency,
+    })),
+    updated,
+    totalSpend,
+    currency,
+    days,
+    costs: series.costs,
+  };
+}
