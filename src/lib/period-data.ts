@@ -347,18 +347,32 @@ export async function crmUpsertAdSpendOnly(input: {
 
 export async function crmSyncMetaAdSpend(opts?: {
   daysBack?: number;
+  /** Kalendermaanden YYYY-MM — heeft voorrang op daysBack */
+  months?: string[];
 }): Promise<{
   accounts: { id: string; name: string; currency: string | null }[];
   updated: number;
   totalSpend: number;
   currency: string | null;
   days: { date: string; spend: number }[];
+  months: string[];
   costs: CostPoint[];
 }> {
-  const { fetchMetaDailyAdSpend } = await import("./meta-ads");
-  const { accounts, days, currency } = await fetchMetaDailyAdSpend({
-    daysBack: opts?.daysBack ?? 30,
-  });
+  const { fetchMetaAdSpendForMonths, fetchMetaDailyAdSpend } = await import(
+    "./meta-ads"
+  );
+
+  const fetched = opts?.months?.length
+    ? await fetchMetaAdSpendForMonths(opts.months)
+    : {
+        ...(await fetchMetaDailyAdSpend({
+          daysBack: opts?.daysBack ?? 30,
+        })),
+        months: [] as string[],
+      };
+
+  const { accounts, days, currency } = fetched;
+  const months = "months" in fetched ? fetched.months : [];
 
   let updated = 0;
   let totalSpend = 0;
@@ -383,6 +397,44 @@ export async function crmSyncMetaAdSpend(opts?: {
     totalSpend,
     currency,
     days,
+    months,
     costs: series.costs,
   };
+}
+
+/** Maanden (YYYY-MM) uit deals/leads + huidige maand. */
+export function monthsFromSeries(input: {
+  deals: { date: string }[];
+  leads: { date: string }[];
+  costs?: { date: string }[];
+}): string[] {
+  const set = new Set<string>();
+  const add = (date: string) => {
+    const m = date.slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(m)) set.add(m);
+  };
+  for (const d of input.deals) add(d.date);
+  for (const l of input.leads) add(l.date);
+  for (const c of input.costs ?? []) add(c.date);
+  // Altijd huidige maand meenemen
+  add(new Date().toISOString().slice(0, 10));
+  return [...set].sort();
+}
+
+/**
+ * Rapportage-data met Meta ad spend per kalendermaand ingeladen in ad spend.
+ */
+export async function crmDashboardSeriesWithMetaSpend(): Promise<DashboardSeries> {
+  const series = await crmDashboardSeries();
+  const { hasMetaAccessToken } = await import("./meta-ads");
+  if (!hasMetaAccessToken()) return series;
+
+  try {
+    const months = monthsFromSeries(series);
+    const synced = await crmSyncMetaAdSpend({ months });
+    return { ...series, costs: synced.costs };
+  } catch (err) {
+    console.error("[meta-ads:sync]", err);
+    return series;
+  }
 }

@@ -91,7 +91,7 @@ export async function listMetaAdAccounts(): Promise<MetaAdAccount[]> {
 /**
  * Bepaal welke account(s) te syncen.
  * - META_AD_ACCOUNT_ID gezet → alleen die
- * - anders alle accounts van de token
+ * - anders: alle EUR-accounts (voorkomt USD+EUR mengen); fallback alle accounts
  */
 export async function resolveMetaAdAccounts(): Promise<MetaAdAccount[]> {
   const configured = process.env.META_AD_ACCOUNT_ID?.trim();
@@ -102,7 +102,6 @@ export async function resolveMetaAdAccounts(): Promise<MetaAdAccount[]> {
       (a) => a.id === want || `act_${a.accountId}` === want,
     );
     if (match) return [match];
-    // Account niet in /me/adaccounts maar ID wel gezet — probeer toch
     return [
       {
         id: want,
@@ -117,7 +116,8 @@ export async function resolveMetaAdAccounts(): Promise<MetaAdAccount[]> {
       "Geen ad accounts gevonden voor deze token. Gebruik een token met ads_read en toegang tot je ad account.",
     );
   }
-  return all;
+  const eur = all.filter((a) => (a.currency || "").toUpperCase() === "EUR");
+  return eur.length > 0 ? eur : all;
 }
 
 type InsightsRow = {
@@ -167,6 +167,21 @@ async function fetchAccountDailySpend(
   return out;
 }
 
+/** Eerste en laatste dag van een YYYY-MM maand. */
+export function monthDateRange(monthKey: string): {
+  since: string;
+  until: string;
+} {
+  const [ys, ms] = monthKey.split("-");
+  const y = Number(ys);
+  const m = Number(ms);
+  if (!y || !m) throw new Error(`Ongeldige maand: ${monthKey}`);
+  const since = `${ys}-${ms.padStart(2, "0")}-01`;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const until = `${ys}-${ms.padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { since, until };
+}
+
 function defaultSinceUntil(daysBack: number): { since: string; until: string } {
   const untilDate = new Date();
   const sinceDate = new Date();
@@ -176,7 +191,7 @@ function defaultSinceUntil(daysBack: number): { since: string; until: string } {
 }
 
 /**
- * Haalt dagelijkse ad spend op (som over alle gekozen accounts).
+ * Haalt dagelijkse ad spend op (som over gekozen accounts).
  */
 export async function fetchMetaDailyAdSpend(opts?: {
   daysBack?: number;
@@ -216,4 +231,43 @@ export async function fetchMetaDailyAdSpend(opts?: {
     null;
 
   return { accounts, days, currency };
+}
+
+/** Haal spend op per kalendermaand (bijv. 2026-07 → 1 t/m 31 juli). */
+export async function fetchMetaAdSpendForMonths(monthKeys: string[]): Promise<{
+  accounts: MetaAdAccount[];
+  days: { date: string; spend: number }[];
+  currency: string | null;
+  months: string[];
+}> {
+  const unique = [...new Set(monthKeys.map((m) => m.slice(0, 7)))].filter(
+    (m) => /^\d{4}-\d{2}$/.test(m),
+  );
+  if (unique.length === 0) {
+    return { accounts: [], days: [], currency: null, months: [] };
+  }
+
+  const accounts = await resolveMetaAdAccounts();
+  const byDate = new Map<string, number>();
+
+  for (const month of unique) {
+    const { since, until } = monthDateRange(month);
+    for (const account of accounts) {
+      const rows = await fetchAccountDailySpend(account, since, until);
+      for (const row of rows) {
+        byDate.set(row.date, (byDate.get(row.date) || 0) + row.spend);
+      }
+    }
+  }
+
+  const days = [...byDate.entries()]
+    .map(([date, spend]) => ({ date, spend }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const currency =
+    accounts.find((a) => a.currency)?.currency ??
+    accounts[0]?.currency ??
+    null;
+
+  return { accounts, days, currency, months: unique.sort() };
 }
