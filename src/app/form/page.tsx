@@ -1,12 +1,5 @@
-import type { Metadata } from "next";
-import { FormFunnel } from "@/components/FormFunnel";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Meld je heftruck aan | heftruckverkocht.nl",
-  description:
-    "Meld je heftruck gratis aan en ontvang een vrijblijvend bod van betrouwbare kopers.",
-};
-
-export default function FormPage() {
-  return <FormFunnel />;
+export default function FormIndexPage() {
+  redirect("/form/1");
 }

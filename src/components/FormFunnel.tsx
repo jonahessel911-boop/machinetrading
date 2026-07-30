@@ -1,99 +1,255 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BRANDS, TIMING_OPTIONS } from "@/lib/constants";
 import { vehicleLabel } from "@/lib/status";
 
-type Step = "brand" | "model" | "timing" | "loading" | "contact" | "done";
+type Step =
+  | "brand"
+  | "model"
+  | "timing"
+  | "name"
+  | "loading"
+  | "contact"
+  | "done";
 
-const STEP_META: Record<
-  Step,
-  { index: number; total: number; header: string; showProgress: boolean }
-> = {
-  brand: {
-    index: 1,
-    total: 4,
-    header: "Selecteer het merk van jouw heftruck",
-    showProgress: true,
-  },
-  model: {
-    index: 2,
-    total: 4,
-    header: "Welk model is jouw heftruck?",
-    showProgress: true,
-  },
-  timing: {
-    index: 3,
-    total: 4,
-    header: "Wanneer wilt u verkopen?",
-    showProgress: true,
-  },
-  loading: {
-    index: 3,
-    total: 4,
-    header: "Potentiële kopers zoeken....",
-    showProgress: true,
-  },
-  contact: {
-    index: 4,
-    total: 4,
-    header: "Laat je gegevens achter voor een vrijblijvend bod",
-    showProgress: true,
-  },
-  done: {
-    index: 4,
-    total: 4,
-    header: "Aanmelding ontvangen",
-    showProgress: false,
-  },
+const STEPS: Step[] = [
+  "brand",
+  "model",
+  "timing",
+  "name",
+  "loading",
+  "contact",
+  "done",
+];
+
+const TOTAL = 6;
+const STORAGE_KEY = "hv-form-funnel-v1";
+
+type Persisted = {
+  merk: string;
+  model: string;
+  timing: string;
+  naam: string;
+  email: string;
+  telefoon: string;
+  woonplaats: string;
+  akkoord: boolean;
+  leadId: string | null;
+  buyerCount: number;
 };
 
+function stepFromNum(n: number): Step {
+  const i = Math.min(Math.max(Math.floor(n), 1), STEPS.length) - 1;
+  return STEPS[i];
+}
+
+function numFromStep(step: Step): number {
+  return STEPS.indexOf(step) + 1;
+}
+
+function readStored(): Partial<Persisted> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Persisted) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function FormFunnel() {
-  const [step, setStep] = useState<Step>("brand");
-  const [merk, setMerk] = useState("");
-  const [model, setModel] = useState("");
-  const [timing, setTiming] = useState("");
-  const [buyerCount] = useState(() => Math.floor(Math.random() * 7) + 4);
-  const [naam, setNaam] = useState("");
-  const [email, setEmail] = useState("");
-  const [telefoon, setTelefoon] = useState("");
-  const [woonplaats, setWoonplaats] = useState("");
+  const router = useRouter();
+  const params = useParams<{ step?: string }>();
+  const urlNum = Number(params.step || "1");
+  const urlStep = stepFromNum(Number.isFinite(urlNum) ? urlNum : 1);
+
+  const stored = useMemo(() => readStored(), []);
+
+  const [step, setStep] = useState<Step>(urlStep);
+  const [merk, setMerk] = useState(stored.merk ?? "");
+  const [model, setModel] = useState(stored.model ?? "");
+  const [timing, setTiming] = useState(stored.timing ?? "");
+  const [buyerCount] = useState(
+    () => stored.buyerCount ?? Math.floor(Math.random() * 11) + 14,
+  );
+  const [naam, setNaam] = useState(stored.naam ?? "");
+  const [email, setEmail] = useState(stored.email ?? "");
+  const [telefoon, setTelefoon] = useState(stored.telefoon ?? "");
+  const [woonplaats, setWoonplaats] = useState(stored.woonplaats ?? "");
+  const [akkoord, setAkkoord] = useState(stored.akkoord ?? false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
-  const [leadId, setLeadId] = useState<string | null>(null);
+  const [loadChecks, setLoadChecks] = useState(0);
+  const [leadId, setLeadId] = useState<string | null>(stored.leadId ?? null);
   const [photos, setPhotos] = useState<{ url: string; id: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
 
   const label = useMemo(() => vehicleLabel(merk, model), [merk, model]);
-  const meta = STEP_META[step];
+
+  const goTo = useCallback(
+    (next: Step, mode: "push" | "replace" = "push") => {
+      setStep(next);
+      const path = `/form/${numFromStep(next)}`;
+      if (mode === "replace") router.replace(path, { scroll: false });
+      else router.push(path, { scroll: false });
+    },
+    [router],
+  );
+
+  // Sync from URL (browser back/forward or deep link)
+  useEffect(() => {
+    if (urlStep !== step) setStep(urlStep);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlStep]);
+
+  // Persist fields
+  useEffect(() => {
+    const data: Persisted = {
+      merk,
+      model,
+      timing,
+      naam,
+      email,
+      telefoon,
+      woonplaats,
+      akkoord,
+      leadId,
+      buyerCount,
+    };
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      /* ignore */
+    }
+  }, [
+    merk,
+    model,
+    timing,
+    naam,
+    email,
+    telefoon,
+    woonplaats,
+    akkoord,
+    leadId,
+    buyerCount,
+  ]);
+
+  const stepIndex =
+    step === "brand"
+      ? 1
+      : step === "model"
+        ? 2
+        : step === "timing"
+          ? 3
+          : step === "name"
+            ? 4
+            : step === "loading"
+              ? 5
+              : step === "contact"
+                ? 6
+                : 6;
+
   const barPct =
-    step === "loading"
-      ? 70
-      : step === "done"
-        ? 100
-        : (meta.index / meta.total) * 100;
+    step === "done"
+      ? 100
+      : step === "loading"
+        ? 70 + (progress / 100) * 13
+        : (stepIndex / TOTAL) * 100;
+
+  const cardHeader = (() => {
+    switch (step) {
+      case "brand":
+        return "Beantwoord een paar simpele vragen en ontvang een vrijblijvend bod. Je zit nergens aan vast!";
+      case "model":
+        return `Perfect. Welk model is jouw ${merk || "heftruck"}?`;
+      case "timing":
+        return `Perfect, en wanneer wil je de ${label} het liefst verkopen?`;
+      case "name":
+        return "Hoe mogen we je noemen?";
+      case "loading":
+        return `We zijn op zoek naar betrouwbare kopers voor je ${label === "heftruck" ? "heftruck" : label}…`;
+      case "contact":
+        return `Gefeliciteerd ${naam.trim() || ""}! We hebben ${buyerCount} dealers gevonden die interesse hebben in jouw heftruck!`;
+      case "done":
+        return "Aanmelding ontvangen";
+      default:
+        return "";
+    }
+  })();
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+      document.documentElement.style.overflow = "";
+    };
+  }, []);
+
+  // Guard: don't skip ahead without data
+  useEffect(() => {
+    if (step === "done" && leadId) return;
+    if (step === "done" && !leadId) {
+      goTo("contact", "replace");
+      return;
+    }
+    if (
+      (step === "loading" || step === "contact") &&
+      (!merk || !timing || naam.trim().length < 2)
+    ) {
+      if (!merk) goTo("brand", "replace");
+      else if (!timing) goTo("timing", "replace");
+      else goTo("name", "replace");
+    }
+  }, [step, merk, timing, naam, leadId, goTo]);
 
   useEffect(() => {
     if (step !== "loading") return;
-    setProgress(0);
+    setProgress(8);
+    setLoadChecks(0);
     const start = Date.now();
-    const duration = 3000;
+    const duration = 4200;
     let raf = 0;
     const tick = () => {
-      const p = Math.min(100, ((Date.now() - start) / duration) * 100);
+      const elapsed = Date.now() - start;
+      const t = Math.min(1, elapsed / duration);
+      let checks = 0;
+      if (t >= 0.22) checks = 1;
+      if (t >= 0.5) checks = 2;
+      if (t >= 0.78) checks = 3;
+      setLoadChecks(checks);
+      const base = (checks / 3) * 100;
+      const within =
+        checks < 3
+          ? ((t - (checks === 0 ? 0 : checks === 1 ? 0.22 : 0.5)) /
+              (checks === 0 ? 0.22 : checks === 1 ? 0.28 : 0.28)) *
+            (100 / 3)
+          : 0;
+      const p = Math.min(100, Math.max(8, base + Math.max(0, within)));
       setProgress(p);
-      if (p < 100) raf = requestAnimationFrame(tick);
-      else setStep("contact");
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else {
+        setProgress(100);
+        setLoadChecks(3);
+        goTo("contact", "replace");
+      }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [step]);
+  }, [step, goTo]);
 
   async function submitLead(e: React.FormEvent) {
     e.preventDefault();
+    if (!akkoord) {
+      setError("Je moet akkoord gaan met de algemene voorwaarden.");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -113,7 +269,7 @@ export function FormFunnel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Mislukt");
       setLeadId(data.id);
-      setStep("done");
+      goTo("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Er ging iets mis");
     } finally {
@@ -121,37 +277,40 @@ export function FormFunnel() {
     }
   }
 
-  const timingHeader =
-    step === "timing"
-      ? `Wanneer wilt u uw ${label} verkopen?`
-      : meta.header;
-
   return (
     <div className="form-page">
       <div className="form-page-inner">
-        <Link href="/" className="form-logo">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo-clean.png" alt="heftruckverkocht.nl" />
-        </Link>
+        <header className="form-hero">
+          <Link href="/" className="form-logo">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/logo-clean.png" alt="heftruckverkocht.nl" />
+          </Link>
+          <div className="form-avatar-wrap">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="form-avatar"
+              src="/images/advisor.jpg"
+              alt="Persoonlijke adviseur"
+            />
+            <span className="form-avatar-badge" aria-hidden="true">
+              ★ 9.8
+            </span>
+          </div>
+        </header>
 
         <div className="form-banner">
-          <div className="form-banner-avatar" aria-hidden="true">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/advisor.jpg" alt="" />
-          </div>
           <p>
-            Wij onderhandelen met heftruckbedrijven in heel Nederland om de
-            beste prijs voor jouw machine te krijgen — zonder dat jij er werk
-            aan hebt.
+            Wij bieden jouw heftruck aan binnen ons netwerk van 150+
+            heftruckbedrijven voor de beste prijs
           </p>
         </div>
 
-        {meta.showProgress && (
+        {step !== "done" && (
           <div className="form-progress">
             <div className="form-progress-labels">
               <span>Gratis aanmelden</span>
               <span>
-                Stap {meta.index} van {meta.total}
+                Stap {Math.min(stepIndex, TOTAL)} van {TOTAL}
               </span>
             </div>
             <div className="form-progress-bar">
@@ -162,7 +321,7 @@ export function FormFunnel() {
 
         <div className="form-card">
           <div className="form-card-head">
-            <h1>{timingHeader}</h1>
+            <h1>{cardHeader}</h1>
           </div>
           <div className="form-card-body">
             {step === "brand" && (
@@ -184,7 +343,7 @@ export function FormFunnel() {
                   className="form-ghost"
                   onClick={() => {
                     setMerk("Onbekend");
-                    setStep("model");
+                    goTo("model");
                   }}
                 >
                   Ik weet het niet / anders
@@ -193,7 +352,7 @@ export function FormFunnel() {
                   type="button"
                   className="form-next"
                   disabled={!merk}
-                  onClick={() => setStep("model")}
+                  onClick={() => goTo("model")}
                 >
                   Volgende →
                 </button>
@@ -207,13 +366,14 @@ export function FormFunnel() {
                   placeholder="Model (bijv. RX60-35)"
                   value={model === "Onbekend" ? "" : model}
                   onChange={(e) => setModel(e.target.value)}
+                  autoComplete="off"
                 />
                 <button
                   type="button"
                   className="form-ghost"
                   onClick={() => {
                     setModel("Onbekend");
-                    setStep("timing");
+                    goTo("timing");
                   }}
                 >
                   Ik weet het niet
@@ -221,15 +381,15 @@ export function FormFunnel() {
                 <button
                   type="button"
                   className="form-next"
-                  disabled={!model || model === "Onbekend"}
-                  onClick={() => setStep("timing")}
+                  disabled={!model.trim()}
+                  onClick={() => goTo("timing")}
                 >
                   Volgende →
                 </button>
                 <button
                   type="button"
                   className="form-back"
-                  onClick={() => setStep("brand")}
+                  onClick={() => goTo("brand")}
                 >
                   ← Terug
                 </button>
@@ -238,25 +398,58 @@ export function FormFunnel() {
 
             {step === "timing" && (
               <div className="form-step">
-                <div className="form-choices">
+                <select
+                  className="form-field"
+                  value={timing}
+                  onChange={(e) => setTiming(e.target.value)}
+                >
+                  <option value="">Kies timing…</option>
                   {TIMING_OPTIONS.map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      className="form-choice"
-                      onClick={() => {
-                        setTiming(opt);
-                        setStep("loading");
-                      }}
-                    >
+                    <option key={opt} value={opt}>
                       {opt}
-                    </button>
+                    </option>
                   ))}
-                </div>
+                </select>
+                <button
+                  type="button"
+                  className="form-next"
+                  disabled={!timing}
+                  onClick={() => goTo("name")}
+                >
+                  Volgende →
+                </button>
                 <button
                   type="button"
                   className="form-back"
-                  onClick={() => setStep("model")}
+                  onClick={() => goTo("model")}
+                >
+                  ← Terug
+                </button>
+              </div>
+            )}
+
+            {step === "name" && (
+              <div className="form-step">
+                <input
+                  className="form-field"
+                  placeholder="Voornaam"
+                  value={naam}
+                  onChange={(e) => setNaam(e.target.value)}
+                  autoComplete="given-name"
+                  enterKeyHint="next"
+                />
+                <button
+                  type="button"
+                  className="form-next"
+                  disabled={naam.trim().length < 2}
+                  onClick={() => goTo("loading")}
+                >
+                  Volgende →
+                </button>
+                <button
+                  type="button"
+                  className="form-back"
+                  onClick={() => goTo("timing")}
                 >
                   ← Terug
                 </button>
@@ -265,46 +458,45 @@ export function FormFunnel() {
 
             {step === "loading" && (
               <div className="form-step form-loading">
-                <div
-                  className="ring"
-                  style={{
-                    background: `conic-gradient(var(--orange) ${progress * 3.6}deg, #ececec 0deg)`,
-                  }}
-                >
-                  <div className="ring-inner">{Math.round(progress)}%</div>
+                <div className="form-load-bar">
+                  <div style={{ width: `${progress}%` }} />
                 </div>
-                <p>Even geduld, we checken ons netwerk.</p>
+                <ul className="form-load-list">
+                  <li className={loadChecks >= 1 ? "done" : ""}>
+                    Ons netwerk van 150+ heftruckbedrijven wordt doorzocht
+                  </li>
+                  <li className={loadChecks >= 2 ? "done" : ""}>
+                    Geïnteresseerde kopers in jouw regio worden gevonden
+                  </li>
+                  <li className={loadChecks >= 3 ? "done" : ""}>
+                    De beste worden op de hoogte gebracht
+                  </li>
+                </ul>
               </div>
             )}
 
             {step === "contact" && (
               <div className="form-step">
-                <p className="form-interest">
-                  {buyerCount} heftruck bedrijven hebben mogelijk interesse!
-                </p>
                 <form className="form-fields" onSubmit={submitLead}>
                   <input
                     className="form-field"
                     required
-                    placeholder="Naam"
-                    value={naam}
-                    onChange={(e) => setNaam(e.target.value)}
-                  />
-                  <input
-                    className="form-field"
-                    required
                     type="email"
-                    placeholder="Email"
+                    inputMode="email"
+                    placeholder="E-mail"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
                   />
                   <input
                     className="form-field"
                     required
                     type="tel"
-                    placeholder="Telefoonnummer"
+                    inputMode="tel"
+                    placeholder="06 12345678"
                     value={telefoon}
                     onChange={(e) => setTelefoon(e.target.value)}
+                    autoComplete="tel"
                   />
                   <input
                     className="form-field"
@@ -312,18 +504,39 @@ export function FormFunnel() {
                     placeholder="Woonplaats"
                     value={woonplaats}
                     onChange={(e) => setWoonplaats(e.target.value)}
+                    autoComplete="address-level2"
                   />
+                  <label className="form-terms">
+                    <input
+                      type="checkbox"
+                      checked={akkoord}
+                      onChange={(e) => setAkkoord(e.target.checked)}
+                    />
+                    <span>
+                      Ik ga akkoord met de{" "}
+                      <a href="/form" onClick={(e) => e.preventDefault()}>
+                        algemene voorwaarden
+                      </a>
+                    </span>
+                  </label>
                   {error && <p className="form-error">{error}</p>}
                   <button
                     type="submit"
                     className="form-next"
-                    disabled={submitting}
+                    disabled={submitting || !akkoord}
                   >
                     {submitting
                       ? "Bezig…"
                       : "Meld mijn heftruck vrijblijvend aan"}
                   </button>
                 </form>
+                <button
+                  type="button"
+                  className="form-back"
+                  onClick={() => goTo("name")}
+                >
+                  ← Terug
+                </button>
               </div>
             )}
 
@@ -332,12 +545,12 @@ export function FormFunnel() {
                 <p className="form-done-lead">
                   We nemen zo snel mogelijk contact met je op. Om sneller de
                   beste prijs voor je{" "}
-                  <strong>{label === "heftruck" ? "heftruck" : label}</strong> te
-                  krijgen kun je alvast foto&apos;s uploaden.
+                  <strong>{label === "heftruck" ? "heftruck" : label}</strong>{" "}
+                  te krijgen kun je alvast foto&apos;s uploaden.
                 </p>
                 <p className="form-done-stat">
-                  De mensen die foto&apos;s uploaden verkopen hun heftruck
-                  gemiddeld voor 29% meer en 4 uur sneller
+                  Wie foto&apos;s uploadt, verkoopt gemiddeld voor 29% meer en 4
+                  uur sneller
                 </p>
 
                 {leadId && (
@@ -394,7 +607,9 @@ export function FormFunnel() {
                           : "Kies of sleep foto's van je heftruck"}
                       </span>
                     </label>
-                    {uploadMsg && <p className="photo-msg photo-msg-error">{uploadMsg}</p>}
+                    {uploadMsg && (
+                      <p className="photo-msg photo-msg-error">{uploadMsg}</p>
+                    )}
                     {photos.length > 0 && (
                       <p className="photo-msg">
                         {photos.length === 1

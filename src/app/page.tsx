@@ -82,7 +82,12 @@ export default function HomePage() {
             </p>
             <div className="steps">
               <article className="step">
-                <div className="step-visual step-a">
+                <div className="step-visual">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/steps/step-1-waarde.webp"
+                    alt="Waardebepaling van je heftruck"
+                  />
                   <span className="step-badge">1</span>
                 </div>
                 <h3>Bepaal de waarde</h3>
@@ -92,7 +97,12 @@ export default function HomePage() {
                 </p>
               </article>
               <article className="step">
-                <div className="step-visual step-b">
+                <div className="step-visual">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/steps/step-2-biedingen.webp"
+                    alt="Biedingen van heftruckbedrijven"
+                  />
                   <span className="step-badge">2</span>
                 </div>
                 <h3>Krijg de beste deal</h3>
@@ -102,7 +112,12 @@ export default function HomePage() {
                 </p>
               </article>
               <article className="step">
-                <div className="step-visual step-c">
+                <div className="step-visual">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/steps/step-3-verkocht.webp"
+                    alt="Heftruck verkocht en betaling ontvangen"
+                  />
                   <span className="step-badge">3</span>
                 </div>
                 <h3>Ontvang je geld</h3>
