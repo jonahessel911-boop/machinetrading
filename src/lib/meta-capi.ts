@@ -44,8 +44,14 @@ function normalizeEmail(email: string): string {
 }
 
 /** Meta: cijfers only, inclusief landcode zonder + */
-function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
+export function normalizePhoneForMeta(phone: string): string {
+  let digits = phone.replace(/\D/g, "");
+  // NL mobiel zonder landcode: 06… → 316…
+  if (digits.startsWith("06") && digits.length === 10) {
+    digits = `31${digits.slice(1)}`;
+  } else if (digits.startsWith("6") && digits.length === 9) {
+    digits = `31${digits}`;
+  }
   return digits;
 }
 
@@ -69,18 +75,34 @@ function splitName(fullName: string | null | undefined): {
   };
 }
 
+/** Bouw fbc uit ruwe fbclid (ad-klik in URL). */
+export function fbcFromFbclid(
+  fbclid: string | null | undefined,
+  creationTimeMs = Date.now(),
+): string | null {
+  const id = fbclid?.trim();
+  if (!id) return null;
+  if (id.startsWith("fb.1.")) return id;
+  return `fb.1.${creationTimeMs}.${id}`;
+}
+
 export function buildMetaUserData(user: MetaUserHints): Record<string, unknown> {
   const fromSplit = splitName(
-    user.firstName && user.lastName
-      ? `${user.firstName} ${user.lastName}`
-      : user.firstName || null,
+    !user.lastName && user.firstName?.includes(" ")
+      ? user.firstName
+      : user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
+        : user.firstName || null,
   );
-  const firstName = user.firstName || fromSplit.firstName;
+  const firstName =
+    user.lastName || !user.firstName?.includes(" ")
+      ? user.firstName || fromSplit.firstName
+      : fromSplit.firstName;
   const lastName = user.lastName || fromSplit.lastName;
 
   const data: Record<string, unknown> = {};
   const em = hashIfPresent(user.email, normalizeEmail);
-  const ph = hashIfPresent(user.phone, normalizePhone);
+  const ph = hashIfPresent(user.phone, normalizePhoneForMeta);
   const fn = hashIfPresent(firstName);
   const ln = hashIfPresent(lastName);
   const ct = hashIfPresent(user.city);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { crmCreateLead } from "@/lib/crm";
 import {
   clientContextFromRequest,
+  fbcFromFbclid,
   readMetaCookiesFromHeader,
   sendMetaLeadEvent,
 } from "@/lib/meta-capi";
@@ -31,9 +32,16 @@ export async function POST(request: Request) {
     const ctx = await clientContextFromRequest(request);
     const cookieMeta = readMetaCookiesFromHeader(request.headers.get("cookie"));
     const fbp =
-      (typeof body.fbp === "string" && body.fbp) || cookieMeta.fbp || null;
+      (typeof body.fbp === "string" && body.fbp.trim()) ||
+      cookieMeta.fbp ||
+      null;
+    const fbclid =
+      (typeof body.fbclid === "string" && body.fbclid.trim()) || null;
     const fbc =
-      (typeof body.fbc === "string" && body.fbc) || cookieMeta.fbc || null;
+      (typeof body.fbc === "string" && body.fbc.trim()) ||
+      cookieMeta.fbc ||
+      fbcFromFbclid(fbclid) ||
+      null;
     const eventSourceUrl =
       (typeof body.eventSourceUrl === "string" && body.eventSourceUrl) ||
       request.headers.get("referer") ||

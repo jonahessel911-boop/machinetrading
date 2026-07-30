@@ -267,7 +267,7 @@ export function FormFunnel() {
     setSubmitting(true);
     setError("");
     try {
-      const { fbp, fbc } = readMetaBrowserCookies();
+      const { fbp, fbc, fbclid } = readMetaBrowserCookies();
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -281,6 +281,7 @@ export function FormFunnel() {
           woonplaats,
           fbp,
           fbc,
+          fbclid,
           eventSourceUrl:
             typeof window !== "undefined" ? window.location.href : undefined,
         }),
