@@ -25,11 +25,14 @@ export type DealPoint = {
   bemVol: number;
   /** Marge (business-omzet) */
   omzet: number;
+  /** Verkoopmedewerker gekoppeld aan de deal */
+  verkoopmedewerker?: string | null;
 };
 
 /** Nieuwe lead (op created_at) */
 export type LeadPoint = {
   date: string;
+  verkoopmedewerker?: string | null;
 };
 
 export type CostPoint = {

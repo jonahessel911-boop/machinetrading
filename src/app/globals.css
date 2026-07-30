@@ -1579,11 +1579,101 @@ img {
   justify-content: space-between;
   align-items: flex-start;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: hidden;
 }
 
 .crm-highlight-main h1 {
   margin: 0 0 0.25rem;
   font-size: 1.5rem;
+}
+
+.crm-sold-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.15rem 0.35rem 0.15rem 0.5rem;
+}
+
+.crm-sold-stamp {
+  position: relative;
+  width: 5.1rem;
+  height: 5.1rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  transform: rotate(-12deg);
+  color: #168a45;
+  background: transparent;
+  border: 3px solid #168a45;
+  box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px #168a45;
+  opacity: 0.95;
+}
+
+.crm-sold-stamp::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(22, 138, 69, 0.85);
+  pointer-events: none;
+}
+
+.crm-sold-stamp-title {
+  position: relative;
+  z-index: 1;
+  font-family: "Times New Roman", Times, Georgia, serif;
+  font-weight: 900;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: #168a45;
+}
+
+.crm-sold-stamp-marge {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-sans), "Segoe UI", sans-serif;
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #168a45;
+}
+
+.crm-sold-rep-label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  min-width: 9.5rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #706e6b;
+}
+
+.crm-sold-rep-label--page {
+  max-width: 280px;
+}
+
+.crm-sold-rep-select {
+  min-width: 9.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #181818;
 }
 
 .crm-highlight-meta {
@@ -2649,6 +2739,56 @@ textarea.crm-input {
 
 .po-wrap {
   overflow-x: auto;
+}
+
+.po-filters {
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid #ecebea;
+  margin-bottom: 0.25rem;
+}
+
+.po-filter-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #706e6b;
+  margin-bottom: 0.45rem;
+}
+
+.po-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.po-chip {
+  appearance: none;
+  border: 1px solid #dddbda;
+  background: #fff;
+  color: #181818;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.po-chip:hover {
+  border-color: #0176d3;
+  color: #0176d3;
+}
+
+.po-chip.is-active {
+  background: #0176d3;
+  border-color: #0176d3;
+  color: #fff;
+}
+
+.po-filter-hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.82rem;
 }
 
 .po-table th,

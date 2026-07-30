@@ -1,7 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import type { DayMetrics } from "@/lib/period-report";
+import { useMemo, useState } from "react";
+import { SALES_REPS } from "@/lib/constants";
+import {
+  buildPeriodTree,
+  type CostPoint,
+  type DayMetrics,
+  type DealPoint,
+  type LeadPoint,
+} from "@/lib/period-report";
 import { formatEuroK } from "@/lib/status";
 
 function money(n: number) {
@@ -19,6 +26,16 @@ function formatPct(n: number) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 1,
   })}%`;
+}
+
+function matchesRep(
+  value: string | null | undefined,
+  selected: Set<string>,
+): boolean {
+  if (selected.size === 0) return true;
+  const name = (value || "").trim();
+  if (!name) return false;
+  return selected.has(name);
 }
 
 function Row({
@@ -83,13 +100,44 @@ function Row({
 }
 
 export function PeriodOverview({
-  initialTree,
+  deals,
+  leads,
+  costs,
 }: {
-  initialTree: DayMetrics[];
-  initialTotals: DayMetrics;
+  deals: DealPoint[];
+  leads: LeadPoint[];
+  costs: CostPoint[];
+  /** @deprecated kept for older callers */
+  initialTree?: DayMetrics[];
+  initialTotals?: DayMetrics;
 }) {
-  const [tree] = useState(initialTree);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [open, setOpen] = useState<Set<string>>(() => new Set());
+
+  const repOptions = useMemo(() => {
+    const names = new Set<string>(SALES_REPS);
+    for (const d of deals) {
+      const n = d.verkoopmedewerker?.trim();
+      if (n) names.add(n);
+    }
+    for (const l of leads) {
+      const n = l.verkoopmedewerker?.trim();
+      if (n) names.add(n);
+    }
+    return [...names].sort((a, b) => a.localeCompare(b, "nl"));
+  }, [deals, leads]);
+
+  const tree = useMemo(() => {
+    const filteredDeals = deals.filter((d) =>
+      matchesRep(d.verkoopmedewerker, selected),
+    );
+    const filteredLeads = leads.filter((l) =>
+      matchesRep(l.verkoopmedewerker, selected),
+    );
+    // Kosten zijn niet per medewerker — alleen tonen bij "Alles"
+    const filteredCosts = selected.size === 0 ? costs : [];
+    return buildPeriodTree(filteredDeals, filteredCosts, filteredLeads);
+  }, [deals, leads, costs, selected]);
 
   function toggle(key: string) {
     setOpen((prev) => {
@@ -100,9 +148,59 @@ export function PeriodOverview({
     });
   }
 
+  function selectAll() {
+    setSelected(new Set());
+  }
+
+  function toggleRep(name: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
+  const filterLabel =
+    selected.size === 0
+      ? "Alle medewerkers"
+      : [...selected].sort((a, b) => a.localeCompare(b, "nl")).join(", ");
+
   return (
     <div className="crm-card">
       <div className="crm-card-head">Periode overzicht</div>
+      <div className="crm-card-body po-filters">
+        <div className="po-filter-label">Verkoopmedewerker</div>
+        <div className="po-filter-chips" role="group" aria-label="Filter verkoopmedewerker">
+          <button
+            type="button"
+            className={`po-chip${selected.size === 0 ? " is-active" : ""}`}
+            onClick={selectAll}
+          >
+            Alles
+          </button>
+          {repOptions.map((name) => {
+            const active = selected.has(name);
+            return (
+              <button
+                key={name}
+                type="button"
+                className={`po-chip${active ? " is-active" : ""}`}
+                aria-pressed={active}
+                onClick={() => toggleRep(name)}
+              >
+                {name}
+              </button>
+            );
+          })}
+        </div>
+        <p className="crm-muted po-filter-hint">
+          Toont: <strong>{filterLabel}</strong>
+          {selected.size > 0
+            ? " · ad spend / sales kosten alleen zichtbaar bij Alles"
+            : ""}
+        </p>
+      </div>
       <div
         className="crm-table-wrap po-wrap"
         style={{ border: "none", boxShadow: "none" }}
@@ -134,7 +232,9 @@ export function PeriodOverview({
             ))}
             {tree.length === 0 && (
               <tr>
-                <td colSpan={10}>Nog geen leads, deals of kosten in een periode.</td>
+                <td colSpan={10}>
+                  Geen leads of deals voor deze selectie.
+                </td>
               </tr>
             )}
           </tbody>

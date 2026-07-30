@@ -1,10 +1,19 @@
 import { getCompanyInfo } from "./company";
 
+export type EmailAttachment = {
+  filename: string;
+  /** Raw bytes or already base64-encoded content */
+  content: Uint8Array | Buffer | string;
+  contentType?: string;
+};
+
 type SendEmailInput = {
-  to: string;
+  to: string | string[];
+  bcc?: string | string[];
   subject: string;
   text: string;
   html?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type SendEmailResult = {
@@ -12,6 +21,26 @@ export type SendEmailResult = {
   mode: "resend" | "demo" | "log";
   error?: string;
 };
+
+const CONTRACT_BCC =
+  process.env.CONTRACT_BCC_EMAIL?.trim() || "jonahessel911@gmail.com";
+
+function asList(value: string | string[] | undefined): string[] {
+  if (!value) return [];
+  const list = Array.isArray(value) ? value : [value];
+  return [
+    ...new Set(
+      list
+        .map((v) => v.trim())
+        .filter((v) => v.length > 0),
+    ),
+  ];
+}
+
+function toBase64(content: Uint8Array | Buffer | string): string {
+  if (typeof content === "string") return content;
+  return Buffer.from(content).toString("base64");
+}
 
 /**
  * Stuurt e-mail via Resend als RESEND_API_KEY gezet is.
@@ -24,22 +53,38 @@ export async function sendEmail(
   const from =
     process.env.EMAIL_FROM ??
     `${getCompanyInfo().name} <${getCompanyInfo().email}>`;
+  const to = asList(input.to);
+  const bcc = asList(input.bcc);
+
+  if (to.length === 0) {
+    return { ok: false, mode: "log", error: "Geen ontvanger (to) opgegeven" };
+  }
 
   if (apiKey) {
     try {
+      const payload: Record<string, unknown> = {
+        from,
+        to,
+        subject: input.subject,
+        text: input.text,
+        html: input.html ?? `<pre>${input.text}</pre>`,
+      };
+      if (bcc.length) payload.bcc = bcc;
+      if (input.attachments?.length) {
+        payload.attachments = input.attachments.map((a) => ({
+          filename: a.filename,
+          content: toBase64(a.content),
+          ...(a.contentType ? { content_type: a.contentType } : {}),
+        }));
+      }
+
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          from,
-          to: [input.to],
-          subject: input.subject,
-          text: input.text,
-          html: input.html ?? `<pre>${input.text}</pre>`,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const body = await res.text();
@@ -60,11 +105,51 @@ export async function sendEmail(
   }
 
   console.info("[email:demo]", {
-    to: input.to,
+    to,
+    bcc: bcc.length ? bcc : undefined,
     subject: input.subject,
     text: input.text,
+    attachments: input.attachments?.map((a) => a.filename),
   });
   return { ok: true, mode: "demo" };
+}
+
+export function contractSendEmail(opts: {
+  sellerName: string;
+  dealerName: string;
+  machineLabel: string;
+}): { subject: string; text: string; html: string } {
+  const company = getCompanyInfo();
+  const subject = `Koopovereenkomst ${opts.machineLabel} – ${company.name}`;
+  const text = [
+    `Beste ${opts.sellerName} en ${opts.dealerName},`,
+    "",
+    `In de bijlage vindt u de koopovereenkomst voor ${opts.machineLabel}.`,
+    "",
+    "Deze mail is verstuurd aan zowel de verkoper als de gekoppelde handelaar.",
+    "",
+    "Met vriendelijke groet,",
+    company.legalName,
+    company.phone,
+    company.email,
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:Segoe UI,sans-serif;color:#181818;line-height:1.5">
+      <p>Beste ${escapeHtml(opts.sellerName)} en ${escapeHtml(opts.dealerName)},</p>
+      <p>In de bijlage vindt u de <strong>koopovereenkomst</strong> voor
+      <strong>${escapeHtml(opts.machineLabel)}</strong>.</p>
+      <p>Deze mail is verstuurd aan zowel de verkoper als de gekoppelde handelaar.</p>
+      <p style="color:#706e6b;font-size:13px">${escapeHtml(company.legalName)} · ${escapeHtml(company.phone)} · ${escapeHtml(company.email)}</p>
+    </div>
+  `;
+
+  return { subject, text, html };
+}
+
+/** BCC bij versturen van koopcontracten */
+export function contractBccEmail(): string {
+  return CONTRACT_BCC;
 }
 
 export function marketplaceShareEmail(opts: {

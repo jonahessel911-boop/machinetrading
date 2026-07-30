@@ -8,6 +8,7 @@ import {
   useFinanceCalc,
 } from "@/components/admin/FinanceCalcFields";
 import type { Buyer, Lead } from "@/lib/mappers";
+import { SALES_REPS } from "@/lib/constants";
 import { formatEuroK } from "@/lib/status";
 
 type CompanyInfo = {
@@ -43,6 +44,9 @@ export function DealPageClient({
 
   const [naam, setNaam] = useState(lead.naam);
   const [bedrijfsnaam, setBedrijfsnaam] = useState(lead.bedrijfsnaam ?? "");
+  const [verkoopmedewerker, setVerkoopmedewerker] = useState(
+    lead.verkoopmedewerker ?? "",
+  );
   const [email, setEmail] = useState(lead.email);
   const [telefoon, setTelefoon] = useState(lead.telefoon);
   const [straat, setStraat] = useState(lead.straat ?? "");
@@ -123,6 +127,7 @@ export function DealPageClient({
         body: JSON.stringify({
           naam,
           bedrijfsnaam: bedrijfsnaam.trim() || null,
+          verkoopmedewerker: verkoopmedewerker.trim() || null,
           email,
           telefoon,
           straat,
@@ -147,6 +152,7 @@ export function DealPageClient({
       setLead(data);
       finance.syncFromLead(data);
       setBedrijfsnaam(data.bedrijfsnaam ?? "");
+      setVerkoopmedewerker(data.verkoopmedewerker ?? "");
       setMessage("Deal opgeslagen.");
 
       if (andGenerate) {
@@ -166,10 +172,11 @@ export function DealPageClient({
         a.download = `contract-${lead.id}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
+        const emailedTo = pdfRes.headers.get("X-Email-To");
         setMessage(
           isExistingDeal
-            ? "Deal opgeslagen en contract opnieuw verstuurd (PDF gedownload)."
-            : "Deal opgeslagen, contract-PDF gedownload. Draft-factuur aangemaakt; eventuele marketplace-veiling ingetrokken.",
+            ? `Deal opgeslagen en contract verstuurd${emailedTo ? ` naar ${emailedTo}` : ""} (PDF gedownload).`
+            : `Deal opgeslagen, contract verstuurd${emailedTo ? ` naar ${emailedTo}` : ""}. PDF gedownload; draft-factuur aangemaakt.`,
         );
         setEditing(false);
       }
@@ -224,7 +231,7 @@ export function DealPageClient({
               disabled={busy}
               onClick={() => saveDeal(true)}
             >
-              Maak contract PDF
+              Maak & verstuur contract
             </button>
           )}
         </div>
@@ -422,6 +429,29 @@ export function DealPageClient({
                       value={dealDatum}
                       onChange={(e) => setDealDatum(e.target.value)}
                     />
+                  </label>
+                  <label>
+                    Verkoopmedewerker
+                    <select
+                      className="crm-select"
+                      value={verkoopmedewerker}
+                      onChange={(e) => setVerkoopmedewerker(e.target.value)}
+                    >
+                      <option value="">— Kies medewerker —</option>
+                      {SALES_REPS.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                      {verkoopmedewerker &&
+                        !(SALES_REPS as readonly string[]).includes(
+                          verkoopmedewerker,
+                        ) && (
+                          <option value={verkoopmedewerker}>
+                            {verkoopmedewerker}
+                          </option>
+                        )}
+                    </select>
                   </label>
                 </div>
               </div>

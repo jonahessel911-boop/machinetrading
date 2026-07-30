@@ -77,10 +77,14 @@ function formatDatumShort(iso?: string | null): string {
 }
 
 function refCode(lead: ContractLead): string {
-  const base = (lead.model || lead.merk || "HEF")
+  const parts = [lead.merk, lead.model]
+    .map((p) => (p || "").trim())
+    .filter((p) => p.length > 0 && !/^onbekend$/i.test(p));
+  const base = parts
+    .join("")
     .replace(/[^a-zA-Z0-9]/g, "")
     .toUpperCase()
-    .slice(0, 10);
+    .slice(0, 12);
   const id = (lead.id || "X").replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase();
   return `HV-${base || "HEF"}-${id || "000"}`;
 }

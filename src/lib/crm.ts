@@ -184,6 +184,7 @@ export async function crmCreateLead(
       netto_inkoopprijs: null,
       deal_datum: null,
       bedrijfsnaam: null,
+      verkoopmedewerker: null,
       buyer_id: null,
       created_at: now,
       updated_at: now,

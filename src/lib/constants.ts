@@ -64,3 +64,10 @@ export const MANUAL_STATUSES = [
   "verkeerd_telefoonnummer",
   "geen_contact",
 ] as const;
+
+/** Verkoopmedewerkers die aan een lead/deal gekoppeld kunnen worden */
+export const SALES_REPS = [
+  "Jona",
+  "Mark",
+  "Lisa",
+] as const;

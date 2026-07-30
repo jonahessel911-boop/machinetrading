@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { MetaPixel } from "@/components/MetaPixel";
 import "./globals.css";
 
 const sans = Plus_Jakarta_Sans({
@@ -27,7 +28,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="nl" className={`${sans.variable} ${mono.variable} h-full`}>
-      <body className="min-h-full font-sans antialiased">{children}</body>
+      <body className="min-h-full font-sans antialiased">
+        <MetaPixel />
+        {children}
+      </body>
     </html>
   );
 }

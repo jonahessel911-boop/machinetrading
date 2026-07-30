@@ -171,9 +171,11 @@ export async function crmDashboardSeries(): Promise<DashboardSeries> {
           date: dealDate(l),
           bemVol: l.inkoopprijs || 0,
           omzet: l.marge || 0,
+          verkoopmedewerker: l.verkoopmedewerker ?? null,
         })),
       leads: store.leads.map((l) => ({
         date: l.created_at.slice(0, 10),
+        verkoopmedewerker: l.verkoopmedewerker ?? null,
       })),
       costs: (store.periodCosts ?? []).map((c) => ({
         date: c.cost_date,
@@ -192,10 +194,10 @@ export async function crmDashboardSeries(): Promise<DashboardSeries> {
     supabase
       .from("leads")
       .select(
-        "deal_datum, updated_at, created_at, inkoopprijs, marge, netto_inkoopprijs, verkoopprijs, status",
+        "deal_datum, updated_at, created_at, inkoopprijs, marge, netto_inkoopprijs, verkoopprijs, status, verkoopmedewerker",
       )
       .eq("status", "deal"),
-    supabase.from("leads").select("created_at"),
+    supabase.from("leads").select("created_at, verkoopmedewerker"),
     supabase.from("period_costs").select("*").order("cost_date", { ascending: false }),
   ]);
 
@@ -211,16 +213,25 @@ export async function crmDashboardSeries(): Promise<DashboardSeries> {
         created_at: string;
         inkoopprijs: number | null;
         marge: number | null;
+        verkoopmedewerker?: string | null;
       };
       return {
         date: dealDate(row),
         bemVol: Number(row.inkoopprijs) || 0,
         omzet: Number(row.marge) || 0,
+        verkoopmedewerker: row.verkoopmedewerker ?? null,
       };
     }),
-    leads: (leadRows ?? []).map((l) => ({
-      date: String((l as { created_at: string }).created_at).slice(0, 10),
-    })),
+    leads: (leadRows ?? []).map((l) => {
+      const row = l as {
+        created_at: string;
+        verkoopmedewerker?: string | null;
+      };
+      return {
+        date: String(row.created_at).slice(0, 10),
+        verkoopmedewerker: row.verkoopmedewerker ?? null,
+      };
+    }),
     costs: ((costRows ?? []) as PeriodCostRow[]).map((c) => ({
       date: c.cost_date,
       adSpend: Number(c.ad_spend) || 0,

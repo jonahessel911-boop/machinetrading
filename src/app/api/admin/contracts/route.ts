@@ -8,8 +8,18 @@ import {
   crmInsertContract,
   crmUpdateLead,
 } from "@/lib/crm";
+import {
+  contractBccEmail,
+  contractSendEmail,
+  sendEmail,
+} from "@/lib/email";
 import { crmEnsureDraftInvoiceForDeal } from "@/lib/invoices";
 import { mpUnpublishForLead } from "@/lib/marketplace-data";
+import {
+  clientContextFromRequest,
+  readMetaCookiesFromHeader,
+  sendMetaDealEvent,
+} from "@/lib/meta-capi";
 
 export async function POST(request: Request) {
   if (!(await isAuthenticated())) {
@@ -56,6 +66,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Koper niet gevonden" }, { status: 404 });
     }
 
+    const sellerEmail = lead.email?.trim() || "";
+    const dealerEmail = buyer.email?.trim() || "";
+    if (!sellerEmail) {
+      return NextResponse.json(
+        { error: "Verkoper heeft geen e-mailadres" },
+        { status: 400 },
+      );
+    }
+    if (!dealerEmail) {
+      return NextResponse.json(
+        {
+          error:
+            "Handelaar heeft geen e-mailadres. Vul dit in bij de koper voordat je het contract verstuurt.",
+        },
+        { status: 400 },
+      );
+    }
+
     if (!lead.buyer_id) {
       await crmUpdateLead(lead.id, { buyer_id: buyer.id });
     }
@@ -87,6 +115,41 @@ export async function POST(request: Request) {
       getCompanyInfo(),
     );
 
+    const machine = [lead.merk, lead.model].filter(Boolean).join(" ").trim();
+    const machineLabel = machine || "heftruck";
+    const dealerName = buyer.bedrijf?.trim() || buyer.naam;
+    const mail = contractSendEmail({
+      sellerName: lead.naam,
+      dealerName,
+      machineLabel,
+    });
+    const filenameBase = [lead.merk, lead.model]
+      .filter(Boolean)
+      .join("-")
+      .replace(/[^a-zA-Z0-9-_]/g, "");
+    const pdfFilename = `Koopovereenkomst-${filenameBase || lead.id}.pdf`;
+
+    const sent = await sendEmail({
+      to: [sellerEmail, dealerEmail],
+      bcc: contractBccEmail(),
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+      attachments: [
+        {
+          filename: pdfFilename,
+          content: pdfBytes,
+          contentType: "application/pdf",
+        },
+      ],
+    });
+    if (!sent.ok) {
+      return NextResponse.json(
+        { error: sent.error || "Contract-e-mail versturen mislukt" },
+        { status: 502 },
+      );
+    }
+
     const contract = await crmInsertContract({
       leadId: lead.id,
       buyerId: buyer.id,
@@ -94,7 +157,6 @@ export async function POST(request: Request) {
 
     await mpUnpublishForLead(lead.id);
 
-    const machine = [lead.merk, lead.model].filter(Boolean).join(" ").trim();
     const draftInvoice = await crmEnsureDraftInvoiceForDeal({
       buyerId: buyer.id,
       leadId: lead.id,
@@ -104,17 +166,37 @@ export async function POST(request: Request) {
         : `Bemiddelingsfee deal ${lead.naam}`,
     });
 
-    const safeName = [lead.merk, lead.model]
-      .filter(Boolean)
-      .join("-")
-      .replace(/[^a-zA-Z0-9-_]/g, "");
+    const ctx = await clientContextFromRequest(request);
+    const cookieMeta = readMetaCookiesFromHeader(request.headers.get("cookie"));
+    void sendMetaDealEvent({
+      leadId: lead.id,
+      contractId: contract.id,
+      email: lead.email,
+      phone: lead.telefoon,
+      naam: lead.naam,
+      woonplaats: lead.woonplaats,
+      merk: lead.merk,
+      model: lead.model,
+      value: lead.marge ?? lead.inkoopprijs ?? 0,
+      eventSourceUrl:
+        request.headers.get("referer") ||
+        `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.heftruckverkocht.nl"}/admin/leads/${lead.id}/deal`,
+      fbp: cookieMeta.fbp,
+      fbc: cookieMeta.fbc,
+      clientIpAddress: ctx.clientIpAddress,
+      clientUserAgent: ctx.clientUserAgent,
+    });
 
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="Koopovereenkomst-${safeName || contract.id}.pdf"`,
+        "Content-Disposition": `attachment; filename="${pdfFilename}"`,
         "X-Contract-Id": contract.id,
+        "X-Email-To": `${sellerEmail}, ${dealerEmail}`,
+        "X-Email-Bcc": contractBccEmail(),
+        "X-Email-Mode": sent.mode,
+        "X-Meta-Event-Id": `deal-${contract.id}`,
         ...(draftInvoice ? { "X-Invoice-Id": draftInvoice.id } : {}),
       },
     });

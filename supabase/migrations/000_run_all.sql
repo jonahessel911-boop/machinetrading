@@ -461,3 +461,9 @@ alter table public.leads
   add column if not exists bedrijfsnaam text;
 
 comment on column public.leads.bedrijfsnaam is 'Optionele bedrijfsnaam verkoper op koopcontract';
+
+-- 011 lead verkoopmedewerker
+alter table public.leads
+  add column if not exists verkoopmedewerker text;
+
+comment on column public.leads.verkoopmedewerker is 'Naam van de verkoopmedewerker die de deal heeft gedaan';

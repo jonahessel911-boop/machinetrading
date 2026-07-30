@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { MANUAL_STATUSES, STATUS_LABELS } from "@/lib/constants";
+import { MANUAL_STATUSES, SALES_REPS, STATUS_LABELS } from "@/lib/constants";
 import type { Lead } from "@/lib/mappers";
 import type { MarketplaceListing } from "@/lib/marketplace";
 import { formatEuro, formatDateTime, labelForStatus } from "@/lib/status";
@@ -337,6 +337,23 @@ export function LeadDetailClient({
             {labelForStatus(lead.status, lead.contactAttempts)}
           </span>
         </div>
+        {lead.status === "deal" && (
+          <div
+            className="crm-sold-stamp"
+            aria-label={
+              lead.marge != null
+                ? `Sold, marge ${formatEuro(lead.marge)}`
+                : "Sold"
+            }
+          >
+            <span className="crm-sold-stamp-title">SOLD</span>
+            {lead.marge != null && (
+              <span className="crm-sold-stamp-marge">
+                {formatEuro(lead.marge)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="crm-two">
@@ -745,6 +762,46 @@ export function LeadDetailClient({
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="crm-card" style={{ marginTop: "0.85rem" }}>
+        <div className="crm-card-head">Verkoopmedewerker</div>
+        <div className="crm-card-body">
+          <label className="crm-sold-rep-label crm-sold-rep-label--page">
+            <span>Gekoppeld aan deze lead</span>
+            <select
+              className="crm-select crm-sold-rep-select"
+              value={lead.verkoopmedewerker ?? ""}
+              disabled={busy}
+              onChange={async (e) => {
+                const value = e.target.value || null;
+                const updated = await patch({ verkoopmedewerker: value });
+                if (updated) {
+                  setMessage(
+                    value
+                      ? `Verkoopmedewerker: ${value}`
+                      : "Verkoopmedewerker ontkoppeld",
+                  );
+                }
+              }}
+            >
+              <option value="">— Kies medewerker —</option>
+              {SALES_REPS.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+              {lead.verkoopmedewerker &&
+                !(SALES_REPS as readonly string[]).includes(
+                  lead.verkoopmedewerker,
+                ) && (
+                  <option value={lead.verkoopmedewerker}>
+                    {lead.verkoopmedewerker}
+                  </option>
+                )}
+            </select>
+          </label>
         </div>
       </div>
     </>

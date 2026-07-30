@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { crmCreateLead } from "@/lib/crm";
+import {
+  clientContextFromRequest,
+  readMetaCookiesFromHeader,
+  sendMetaLeadEvent,
+} from "@/lib/meta-capi";
 
 export async function POST(request: Request) {
   try {
@@ -23,7 +28,38 @@ export async function POST(request: Request) {
       woonplaats: String(woonplaats).trim(),
     });
 
-    return NextResponse.json({ ok: true, id: lead.id });
+    const ctx = await clientContextFromRequest(request);
+    const cookieMeta = readMetaCookiesFromHeader(request.headers.get("cookie"));
+    const fbp =
+      (typeof body.fbp === "string" && body.fbp) || cookieMeta.fbp || null;
+    const fbc =
+      (typeof body.fbc === "string" && body.fbc) || cookieMeta.fbc || null;
+    const eventSourceUrl =
+      (typeof body.eventSourceUrl === "string" && body.eventSourceUrl) ||
+      request.headers.get("referer") ||
+      null;
+
+    // Fire-and-forget: lead opslaan mag niet falen door Meta
+    void sendMetaLeadEvent({
+      leadId: lead.id,
+      email: lead.email,
+      phone: lead.telefoon,
+      naam: lead.naam,
+      woonplaats: lead.woonplaats,
+      merk: lead.merk,
+      model: lead.model,
+      eventSourceUrl,
+      fbp,
+      fbc,
+      clientIpAddress: ctx.clientIpAddress,
+      clientUserAgent: ctx.clientUserAgent,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      id: lead.id,
+      metaEventId: `lead-${lead.id}`,
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json(

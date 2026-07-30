@@ -129,6 +129,11 @@ export async function PATCH(request: Request, { params }: Params) {
         ? String(body.bedrijfsnaam).trim()
         : null;
     }
+    if ("verkoopmedewerker" in body) {
+      patch.verkoopmedewerker = body.verkoopmedewerker
+        ? String(body.verkoopmedewerker).trim()
+        : null;
+    }
     if ("naam" in body) patch.naam = String(body.naam).trim();
     if ("email" in body) patch.email = String(body.email).trim();
     if ("telefoon" in body) patch.telefoon = String(body.telefoon).trim();

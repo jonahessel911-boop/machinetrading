@@ -12,6 +12,10 @@ import {
 import { BRANDS, TIMING_OPTIONS } from "@/lib/constants";
 import { formatNlMobileDisplay, toE164NlMobile } from "@/lib/phone";
 import { vehicleLabel } from "@/lib/status";
+import {
+  readMetaBrowserCookies,
+  trackMetaBrowserEvent,
+} from "@/components/MetaPixel";
 
 type Step =
   | "brand"
@@ -263,6 +267,7 @@ export function FormFunnel() {
     setSubmitting(true);
     setError("");
     try {
+      const { fbp, fbc } = readMetaBrowserCookies();
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -274,11 +279,20 @@ export function FormFunnel() {
           email,
           telefoon: phoneE164,
           woonplaats,
+          fbp,
+          fbc,
+          eventSourceUrl:
+            typeof window !== "undefined" ? window.location.href : undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Mislukt");
       setLeadId(data.id);
+      trackMetaBrowserEvent("Lead", {
+        eventId: data.metaEventId || `lead-${data.id}`,
+        value: 0,
+        currency: "EUR",
+      });
       goTo("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Er ging iets mis");
