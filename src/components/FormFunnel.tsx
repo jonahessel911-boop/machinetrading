@@ -2,8 +2,15 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 import { BRANDS, TIMING_OPTIONS } from "@/lib/constants";
+import { formatNlMobileDisplay, toE164NlMobile } from "@/lib/phone";
 import { vehicleLabel } from "@/lib/status";
 
 type Step =
@@ -77,7 +84,9 @@ export function FormFunnel() {
   );
   const [naam, setNaam] = useState(stored.naam ?? "");
   const [email, setEmail] = useState(stored.email ?? "");
-  const [telefoon, setTelefoon] = useState(stored.telefoon ?? "");
+  const [telefoon, setTelefoon] = useState(() =>
+    formatNlMobileDisplay(stored.telefoon ?? ""),
+  );
   const [woonplaats, setWoonplaats] = useState(stored.woonplaats ?? "");
   const [akkoord, setAkkoord] = useState(stored.akkoord ?? false);
   const [submitting, setSubmitting] = useState(false);
@@ -211,43 +220,44 @@ export function FormFunnel() {
 
   useEffect(() => {
     if (step !== "loading") return;
-    setProgress(8);
+    setProgress(0);
     setLoadChecks(0);
     const start = Date.now();
-    const duration = 4200;
+    const duration = 4800;
     let raf = 0;
+    let cancelled = false;
     const tick = () => {
-      const elapsed = Date.now() - start;
-      const t = Math.min(1, elapsed / duration);
-      let checks = 0;
-      if (t >= 0.22) checks = 1;
-      if (t >= 0.5) checks = 2;
-      if (t >= 0.78) checks = 3;
-      setLoadChecks(checks);
-      const base = (checks / 3) * 100;
-      const within =
-        checks < 3
-          ? ((t - (checks === 0 ? 0 : checks === 1 ? 0.22 : 0.5)) /
-              (checks === 0 ? 0.22 : checks === 1 ? 0.28 : 0.28)) *
-            (100 / 3)
-          : 0;
-      const p = Math.min(100, Math.max(8, base + Math.max(0, within)));
+      if (cancelled) return;
+      const t = Math.min(1, (Date.now() - start) / duration);
+      // Ease-out so the bar keeps moving visibly with each check
+      const eased = 1 - (1 - t) * (1 - t);
+      const p = Math.min(100, eased * 100);
       setProgress(p);
-      if (t < 1) raf = requestAnimationFrame(tick);
-      else {
+      setLoadChecks(p >= 95 ? 3 : p >= 62 ? 2 : p >= 28 ? 1 : 0);
+      if (t < 1) {
+        raf = requestAnimationFrame(tick);
+      } else {
         setProgress(100);
         setLoadChecks(3);
         goTo("contact", "replace");
       }
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
   }, [step, goTo]);
 
   async function submitLead(e: React.FormEvent) {
     e.preventDefault();
     if (!akkoord) {
       setError("Je moet akkoord gaan met de algemene voorwaarden.");
+      return;
+    }
+    const phoneE164 = toE164NlMobile(telefoon);
+    if (!phoneE164) {
+      setError("Vul een geldig Nederlands mobiel nummer in (06… / +31 6…).");
       return;
     }
     setSubmitting(true);
@@ -262,7 +272,7 @@ export function FormFunnel() {
           timing,
           naam,
           email,
-          telefoon,
+          telefoon: phoneE164,
           woonplaats,
         }),
       });
@@ -459,7 +469,9 @@ export function FormFunnel() {
             {step === "loading" && (
               <div className="form-step form-loading">
                 <div className="form-load-bar">
-                  <div style={{ width: `${progress}%` }} />
+                  <div
+                    style={{ "--load-p": progress / 100 } as CSSProperties}
+                  />
                 </div>
                 <ul className="form-load-list">
                   <li className={loadChecks >= 1 ? "done" : ""}>
@@ -488,16 +500,29 @@ export function FormFunnel() {
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"
                   />
-                  <input
-                    className="form-field"
-                    required
-                    type="tel"
-                    inputMode="tel"
-                    placeholder="06 12345678"
-                    value={telefoon}
-                    onChange={(e) => setTelefoon(e.target.value)}
-                    autoComplete="tel"
-                  />
+                  <div className="form-phone">
+                    <span className="form-phone-flag" aria-hidden="true">
+                      🇳🇱
+                    </span>
+                    <input
+                      className="form-field form-phone-input"
+                      required
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="+31 6 12 34 56 78"
+                      value={telefoon}
+                      onChange={(e) =>
+                        setTelefoon(formatNlMobileDisplay(e.target.value))
+                      }
+                      onBlur={() => {
+                        if (telefoon && !telefoon.startsWith("+31")) {
+                          setTelefoon(formatNlMobileDisplay(telefoon));
+                        }
+                      }}
+                      autoComplete="tel"
+                      aria-label="Mobiel telefoonnummer"
+                    />
+                  </div>
                   <input
                     className="form-field"
                     required
@@ -514,7 +539,11 @@ export function FormFunnel() {
                     />
                     <span>
                       Ik ga akkoord met de{" "}
-                      <a href="/form" onClick={(e) => e.preventDefault()}>
+                      <a
+                        href="/algemene-voorwaarden"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         algemene voorwaarden
                       </a>
                     </span>
