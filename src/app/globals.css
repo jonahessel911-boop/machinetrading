@@ -1216,6 +1216,27 @@ img {
   border-color: var(--orange-deep);
 }
 
+.crm-btn-contract {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--orange);
+  border-color: var(--orange);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.crm-btn-contract:hover {
+  background: var(--orange-deep);
+  border-color: var(--orange-deep);
+  color: #fff;
+}
+
+.crm-btn-contract svg {
+  flex-shrink: 0;
+}
+
 .crm-btn-neutral {
   background: #ecebea;
   border-color: #dddbda;
