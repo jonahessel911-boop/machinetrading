@@ -24,25 +24,6 @@ function statusBadgeClass(status: string) {
   return "crm-badge";
 }
 
-function PostcodeIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  );
-}
-
 export function LeadDetailClient({
   initialLead,
   initialListing = null,
@@ -56,17 +37,11 @@ export function LeadDetailClient({
     initialListing,
   );
   const [shareOpen, setShareOpen] = useState(false);
-  const [straat, setStraat] = useState(lead.straat ?? "");
-  const [huisnummer, setHuisnummer] = useState(lead.huisnummer ?? "");
-  const [toevoeging, setToevoeging] = useState(lead.toevoeging ?? "");
-  const [postcode, setPostcode] = useState(lead.postcode ?? "");
-  const [woonplaats, setWoonplaats] = useState(lead.woonplaats ?? "");
   const [omschrijving, setOmschrijving] = useState(
     initialListing?.omschrijving ?? "",
   );
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [lookupBusy, setLookupBusy] = useState(false);
 
   async function patch(body: Record<string, unknown>) {
     setBusy(true);
@@ -80,11 +55,6 @@ export function LeadDetailClient({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Update mislukt");
       setLead(data);
-      setStraat(data.straat ?? "");
-      setHuisnummer(data.huisnummer ?? "");
-      setToevoeging(data.toevoeging ?? "");
-      setPostcode(data.postcode ?? "");
-      setWoonplaats(data.woonplaats ?? "");
       router.refresh();
       return data;
     } catch (err) {
@@ -105,53 +75,6 @@ export function LeadDetailClient({
       setMessage(
         `Contactpoging geregistreerd (${updated.contactAttempts}/7).`,
       );
-    }
-  }
-
-  async function saveAddress() {
-    await patch({
-      straat: straat || null,
-      huisnummer: huisnummer || null,
-      toevoeging: toevoeging || null,
-      postcode: postcode || null,
-      woonplaats: woonplaats || null,
-    });
-    setMessage("Adres opgeslagen.");
-  }
-
-  async function lookupPostcode() {
-    if (!postcode.trim() || !huisnummer.trim()) {
-      setMessage("Vul postcode en huisnummer in voor de lookup.");
-      return;
-    }
-    setLookupBusy(true);
-    setMessage("");
-    try {
-      const res = await fetch(
-        `/api/admin/postcode?postcode=${encodeURIComponent(postcode)}&number=${encodeURIComponent(huisnummer)}`,
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Lookup mislukt");
-      const nextStraat = data.street || "";
-      const nextWoonplaats = data.city || "";
-      const nextPostcode = data.zip_code || postcode;
-      const nextHuisnummer = String(data.house_number || huisnummer);
-      setStraat(nextStraat);
-      setWoonplaats(nextWoonplaats);
-      setPostcode(nextPostcode);
-      setHuisnummer(nextHuisnummer);
-      await patch({
-        straat: nextStraat || null,
-        huisnummer: nextHuisnummer || null,
-        toevoeging: toevoeging || null,
-        postcode: nextPostcode || null,
-        woonplaats: nextWoonplaats || null,
-      });
-      setMessage("Adres opgehaald en opgeslagen via postcode API.");
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Lookup mislukt");
-    } finally {
-      setLookupBusy(false);
     }
   }
 
@@ -340,9 +263,9 @@ export function LeadDetailClient({
       <div className="crm-two">
         <div>
           <div className="crm-card">
-            <div className="crm-card-head">Leadgegevens & adres</div>
+            <div className="crm-card-head">Leadgegevens</div>
             <div className="crm-card-body">
-              <div className="crm-fields" style={{ marginBottom: "1rem" }}>
+              <div className="crm-fields">
                 <div className="crm-field">
                   <label>Naam</label>
                   <div>{lead.naam}</div>
@@ -360,6 +283,10 @@ export function LeadDetailClient({
                   </div>
                 </div>
                 <div className="crm-field">
+                  <label>Woonplaats</label>
+                  <div>{lead.woonplaats || "—"}</div>
+                </div>
+                <div className="crm-field">
                   <label>Timing</label>
                   <div>{lead.timing}</div>
                 </div>
@@ -371,73 +298,6 @@ export function LeadDetailClient({
                   <label>Koper</label>
                   <div>{lead.buyer?.bedrijf ?? "Nog niet gekoppeld"}</div>
                 </div>
-              </div>
-
-              <div className="crm-form">
-                <div className="crm-postcode-row">
-                  <label>
-                    Postcode
-                    <input
-                      className="crm-input"
-                      value={postcode}
-                      onChange={(e) => setPostcode(e.target.value)}
-                      placeholder="1234AB"
-                    />
-                  </label>
-                  <label>
-                    Huisnr
-                    <input
-                      className="crm-input"
-                      value={huisnummer}
-                      onChange={(e) => setHuisnummer(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Toev.
-                    <input
-                      className="crm-input"
-                      value={toevoeging}
-                      onChange={(e) => setToevoeging(e.target.value)}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="crm-btn crm-btn-primary crm-postcode-btn"
-                    title="Adres ophalen via postcode"
-                    disabled={lookupBusy || busy}
-                    onClick={lookupPostcode}
-                  >
-                    <PostcodeIcon />
-                  </button>
-                </div>
-                <label>
-                  Straat
-                  <input
-                    className="crm-input"
-                    value={straat}
-                    onChange={(e) => setStraat(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Woonplaats
-                  <input
-                    className="crm-input"
-                    value={woonplaats}
-                    onChange={(e) => setWoonplaats(e.target.value)}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="crm-btn"
-                  disabled={busy}
-                  onClick={saveAddress}
-                >
-                  Adres opslaan
-                </button>
-                <p className="crm-muted">
-                  Vul postcode + huisnummer in en klik op het pin-icoon om
-                  straat/woonplaats te vullen (nodig voor contract-PDF).
-                </p>
               </div>
             </div>
           </div>
