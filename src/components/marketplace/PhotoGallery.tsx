@@ -9,30 +9,14 @@ type Photo = {
   originalName?: string;
 };
 
-/** Breedtes die Next image optimizer toestaat (deviceSizes) */
-const LIGHTBOX_W = 1080;
-const LIGHTBOX_Q = 72;
-const THUMB_W = 256;
-const THUMB_Q = 60;
-
 function isRemoteHttp(url: string) {
   return /^https?:\/\//i.test(url);
-}
-
-/** Directe Next.js image-optimizer URL — zelfde URL = browser-cache hit */
-function nextOptimizedUrl(src: string, width: number, quality: number) {
-  if (!isRemoteHttp(src)) return src;
-  const params = new URLSearchParams({
-    url: src,
-    w: String(width),
-    q: String(quality),
-  });
-  return `/_next/image?${params}`;
 }
 
 function preload(src: string): Promise<void> {
   return new Promise((resolve) => {
     const img = new window.Image();
+    img.decoding = "async";
     img.onload = () => resolve();
     img.onerror = () => resolve();
     img.src = src;
@@ -49,38 +33,26 @@ export function PhotoGallery({
   thumbClassName?: string;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
-  /** Welke lightbox-URL's al in cache zitten */
   const [readyIds, setReadyIds] = useState<Record<string, true>>({});
-
-  const lightboxSrc = useCallback((url: string) => {
-    return nextOptimizedUrl(url, LIGHTBOX_W, LIGHTBOX_Q);
-  }, []);
-
-  const thumbSrc = useCallback((url: string) => {
-    return nextOptimizedUrl(url, THUMB_W, THUMB_Q);
-  }, []);
 
   const photoIds = useMemo(() => photos.map((p) => p.id).join(","), [photos]);
 
-  // Prefetch alle lightbox-formaten zodra de grid zichtbaar is
+  const markReady = useCallback((id: string) => {
+    setReadyIds((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
+  }, []);
+
+  // Prefetch originele foto's (direct Supabase — geen /_next/image bottleneck)
   useEffect(() => {
     if (photos.length === 0) return;
     let cancelled = false;
 
     const run = async () => {
-      // Eerst eerste 4 (meest waarschijnlijk geklikt), daarna rest
-      const ordered = [
-        ...photos.slice(0, 4),
-        ...photos.slice(4),
-      ];
+      const ordered = [...photos.slice(0, 4), ...photos.slice(4)];
       for (const p of ordered) {
         if (cancelled) return;
-        const src = lightboxSrc(p.url);
-        await preload(src);
+        await preload(p.url);
         if (cancelled) return;
-        setReadyIds((prev) =>
-          prev[p.id] ? prev : { ...prev, [p.id]: true },
-        );
+        markReady(p.id);
       }
     };
 
@@ -91,11 +63,11 @@ export function PhotoGallery({
     if (ric) {
       idleId = ric(() => {
         void run();
-      }, { timeout: 800 });
+      }, { timeout: 600 });
     } else {
       timeoutId = setTimeout(() => {
         void run();
-      }, 150);
+      }, 100);
     }
 
     return () => {
@@ -105,67 +77,50 @@ export function PhotoGallery({
       }
       if (timeoutId) clearTimeout(timeoutId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoIds, lightboxSrc]);
+  }, [photoIds, photos, markReady]);
+
+  const warm = useCallback(
+    (index: number) => {
+      const targets = [
+        photos[index],
+        photos[(index + 1) % photos.length],
+        photos[(index - 1 + photos.length) % photos.length],
+      ];
+      for (const p of targets) {
+        if (!p) continue;
+        void preload(p.url).then(() => markReady(p.id));
+      }
+    },
+    [photos, markReady],
+  );
 
   const openAt = useCallback(
     (index: number) => {
       setOpenIndex(index);
-      // Prioriteit: huidige + buren meteen laden
-      const idxs = [
-        index,
-        (index + 1) % photos.length,
-        (index - 1 + photos.length) % photos.length,
-      ];
-      for (const i of idxs) {
-        const p = photos[i];
-        if (!p) continue;
-        void preload(lightboxSrc(p.url)).then(() => {
-          setReadyIds((prev) =>
-            prev[p.id] ? prev : { ...prev, [p.id]: true },
-          );
-        });
-      }
+      warm(index);
     },
-    [photos, lightboxSrc],
+    [warm],
   );
 
   const close = useCallback(() => setOpenIndex(null), []);
+
   const prev = useCallback(() => {
     setOpenIndex((i) => {
       if (i == null) return i;
       const nextI = (i - 1 + photos.length) % photos.length;
-      const p = photos[nextI];
-      if (p) {
-        void preload(lightboxSrc(p.url)).then(() => {
-          setReadyIds((prevState) =>
-            prevState[p.id] ? prevState : { ...prevState, [p.id]: true },
-          );
-        });
-      }
-      // Prefetch nieuwe buur
-      const neighbor = photos[(nextI - 1 + photos.length) % photos.length];
-      if (neighbor) void preload(lightboxSrc(neighbor.url));
+      warm(nextI);
       return nextI;
     });
-  }, [photos, lightboxSrc]);
+  }, [photos.length, warm]);
+
   const next = useCallback(() => {
     setOpenIndex((i) => {
       if (i == null) return i;
       const nextI = (i + 1) % photos.length;
-      const p = photos[nextI];
-      if (p) {
-        void preload(lightboxSrc(p.url)).then(() => {
-          setReadyIds((prevState) =>
-            prevState[p.id] ? prevState : { ...prevState, [p.id]: true },
-          );
-        });
-      }
-      const neighbor = photos[(nextI + 1) % photos.length];
-      if (neighbor) void preload(lightboxSrc(neighbor.url));
+      warm(nextI);
       return nextI;
     });
-  }, [photos, lightboxSrc]);
+  }, [photos.length, warm]);
 
   useEffect(() => {
     if (openIndex == null) return;
@@ -200,22 +155,10 @@ export function PhotoGallery({
             className={thumbClassName}
             onClick={() => openAt(index)}
             onMouseEnter={() => {
-              void preload(lightboxSrc(p.url)).then(() => {
-                setReadyIds((prevState) =>
-                  prevState[p.id]
-                    ? prevState
-                    : { ...prevState, [p.id]: true },
-                );
-              });
+              void preload(p.url).then(() => markReady(p.id));
             }}
             onFocus={() => {
-              void preload(lightboxSrc(p.url)).then(() => {
-                setReadyIds((prevState) =>
-                  prevState[p.id]
-                    ? prevState
-                    : { ...prevState, [p.id]: true },
-                );
-              });
+              void preload(p.url).then(() => markReady(p.id));
             }}
             aria-label={`Foto ${index + 1} vergroten`}
           >
@@ -223,11 +166,11 @@ export function PhotoGallery({
               <Image
                 src={p.url}
                 alt={p.originalName ?? `Foto ${index + 1}`}
-                width={THUMB_W}
-                height={THUMB_W}
+                width={256}
+                height={256}
                 sizes="120px"
-                quality={THUMB_Q}
-                loading={index < 6 ? "eager" : "lazy"}
+                quality={75}
+                loading={index < 8 ? "eager" : "lazy"}
                 className="photo-thumb-img"
               />
             ) : (
@@ -235,7 +178,7 @@ export function PhotoGallery({
               <img
                 src={p.url}
                 alt={p.originalName ?? `Foto ${index + 1}`}
-                loading={index < 6 ? "eager" : "lazy"}
+                loading={index < 8 ? "eager" : "lazy"}
                 decoding="async"
                 className="photo-thumb-img"
               />
@@ -279,33 +222,17 @@ export function PhotoGallery({
             className="mp-lightbox-stage"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Thumbnail meteen zichtbaar (al in cache van het grid) */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={thumbSrc(open.url)}
-              alt=""
-              aria-hidden
-              className={`photo-lightbox-img photo-lightbox-placeholder${
-                openReady ? " is-hidden" : ""
-              }`}
-            />
-            {/* Scherpe versie — vaak al geprefetched */}
+            {/* Directe Supabase-URL — geen /_next/image (die brak door quality-config) */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               key={open.id}
-              src={lightboxSrc(open.url)}
+              src={open.url}
               alt={open.originalName ?? `Foto ${openIndex + 1}`}
               decoding="async"
               className={`photo-lightbox-img photo-lightbox-full${
                 openReady ? " is-ready" : ""
               }`}
-              onLoad={() => {
-                setReadyIds((prevState) =>
-                  prevState[open.id]
-                    ? prevState
-                    : { ...prevState, [open.id]: true },
-                );
-              }}
+              onLoad={() => markReady(open.id)}
             />
             {!openReady && (
               <div className="photo-lightbox-spinner" aria-hidden>

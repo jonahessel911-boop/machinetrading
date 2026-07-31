@@ -2697,26 +2697,9 @@ textarea.crm-input {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
 
-.photo-lightbox-placeholder,
 .photo-lightbox-full {
-  grid-area: 1 / 1;
-}
-
-.photo-lightbox-placeholder {
-  filter: blur(8px);
-  transform: scale(1.02);
-  opacity: 1;
-  transition: opacity 0.2s ease;
-}
-
-.photo-lightbox-placeholder.is-hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.photo-lightbox-full {
-  opacity: 0;
-  transition: opacity 0.18s ease;
+  opacity: 0.35;
+  transition: opacity 0.15s ease;
 }
 
 .photo-lightbox-full.is-ready {
