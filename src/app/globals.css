@@ -400,6 +400,25 @@ img {
   margin: 0;
 }
 
+.form-field-error {
+  margin: -0.35rem 0 0;
+  padding: 0 0.4rem;
+  color: #d92d20;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.form-field-error.form-field-error-left {
+  text-align: left;
+}
+
+.form-field.is-invalid,
+.form-phone.is-invalid {
+  border-color: #d92d20;
+}
+
 .funnel-loading {
   justify-items: center;
   text-align: center;
@@ -2020,14 +2039,13 @@ img {
 }
 
 .form-step > .form-next,
-.form-step > .form-ghost + .form-next,
-.form-step > .form-fields + .form-back,
-.form-step > form + .form-back {
+.form-step > .form-ghost + .form-next {
   margin-top: auto;
 }
 
-.form-step > .form-back {
-  margin-top: 0.15rem;
+.form-step > .form-back,
+.form-fields > .form-back {
+  margin-top: 0.35rem;
   flex-shrink: 0;
 }
 
@@ -2132,7 +2150,9 @@ select.form-field {
 }
 
 .form-next:disabled {
-  opacity: 0.45;
+  background: var(--orange);
+  color: #fff;
+  opacity: 1;
   cursor: not-allowed;
 }
 
@@ -2193,10 +2213,14 @@ select.form-field {
   flex-direction: column;
   gap: 0.7rem;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .form-fields .form-next {
   margin-top: auto;
+  flex-shrink: 0;
 }
 
 .form-row-2 {

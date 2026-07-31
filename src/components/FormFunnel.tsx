@@ -41,6 +41,7 @@ const STEPS: Step[] = [
 
 const TOTAL = 6;
 const STORAGE_KEY = "hv-form-funnel-v1";
+const FIELD_HINT = "Vul dit nog in";
 
 type Persisted = {
   merk: string;
@@ -102,6 +103,7 @@ export function FormFunnel() {
   const [akkoord, setAkkoord] = useState(stored.akkoord ?? false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [progress, setProgress] = useState(0);
   const [loadChecks, setLoadChecks] = useState(0);
   const [leadId, setLeadId] = useState<string | null>(stored.leadId ?? null);
@@ -140,6 +142,20 @@ export function FormFunnel() {
     if (urlStep !== step) setStep(urlStep);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlStep]);
+
+  useEffect(() => {
+    setFieldErrors({});
+    setError("");
+  }, [step]);
+
+  function clearFieldError(key: string) {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
 
   // Snap Meta click-id bij binnenkomst formulier (en houd vast)
   useEffect(() => {
@@ -292,17 +308,29 @@ export function FormFunnel() {
 
   async function submitLead(e: React.FormEvent) {
     e.preventDefault();
-    if (!akkoord) {
-      setError("Je moet akkoord gaan met de algemene voorwaarden.");
+    const nextErrors: Record<string, string> = {};
+    if (!email.trim()) nextErrors.email = FIELD_HINT;
+    if (!telefoon.trim()) nextErrors.telefoon = FIELD_HINT;
+    else if (!toE164NlMobile(telefoon)) {
+      nextErrors.telefoon = "Vul een geldig Nederlands mobiel nummer in";
+    }
+    if (!woonplaats.trim()) nextErrors.woonplaats = FIELD_HINT;
+    if (!akkoord) nextErrors.akkoord = FIELD_HINT;
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      setError("");
       return;
     }
     const phoneE164 = toE164NlMobile(telefoon);
     if (!phoneE164) {
-      setError("Vul een geldig Nederlands mobiel nummer in (06… / +31 6…).");
+      setFieldErrors({
+        telefoon: "Vul een geldig Nederlands mobiel nummer in",
+      });
       return;
     }
     setSubmitting(true);
     setError("");
+    setFieldErrors({});
     try {
       const { fbp, fbc, fbclid } = readMetaBrowserCookies();
       // Prefer snapshotted attribution from funnel (survives cookie clears)
@@ -396,9 +424,12 @@ export function FormFunnel() {
             {step === "brand" && (
               <div className="form-step">
                 <select
-                  className="form-field"
+                  className={`form-field${fieldErrors.merk ? " is-invalid" : ""}`}
                   value={merk === "Onbekend" ? "" : merk}
-                  onChange={(e) => setMerk(e.target.value)}
+                  onChange={(e) => {
+                    setMerk(e.target.value);
+                    clearFieldError("merk");
+                  }}
                 >
                   <option value="">Kies een merk…</option>
                   {BRANDS.map((b) => (
@@ -407,11 +438,15 @@ export function FormFunnel() {
                     </option>
                   ))}
                 </select>
+                {fieldErrors.merk && (
+                  <p className="form-field-error">{fieldErrors.merk}</p>
+                )}
                 <button
                   type="button"
                   className="form-ghost"
                   onClick={() => {
                     setMerk("Onbekend");
+                    setFieldErrors({});
                     goTo("model");
                   }}
                 >
@@ -420,8 +455,13 @@ export function FormFunnel() {
                 <button
                   type="button"
                   className="form-next"
-                  disabled={!merk}
-                  onClick={() => goTo("model")}
+                  onClick={() => {
+                    if (!merk || merk === "Onbekend") {
+                      setFieldErrors({ merk: FIELD_HINT });
+                      return;
+                    }
+                    goTo("model");
+                  }}
                 >
                   Volgende →
                 </button>
@@ -431,17 +471,24 @@ export function FormFunnel() {
             {step === "model" && (
               <div className="form-step">
                 <input
-                  className="form-field"
+                  className={`form-field${fieldErrors.model ? " is-invalid" : ""}`}
                   placeholder="Model (bijv. RX60-35)"
                   value={model === "Onbekend" ? "" : model}
-                  onChange={(e) => setModel(e.target.value)}
+                  onChange={(e) => {
+                    setModel(e.target.value);
+                    clearFieldError("model");
+                  }}
                   autoComplete="off"
                 />
+                {fieldErrors.model && (
+                  <p className="form-field-error">{fieldErrors.model}</p>
+                )}
                 <button
                   type="button"
                   className="form-ghost"
                   onClick={() => {
                     setModel("Onbekend");
+                    setFieldErrors({});
                     goTo("timing");
                   }}
                 >
@@ -450,8 +497,13 @@ export function FormFunnel() {
                 <button
                   type="button"
                   className="form-next"
-                  disabled={!model.trim()}
-                  onClick={() => goTo("timing")}
+                  onClick={() => {
+                    if (!model.trim() || model === "Onbekend") {
+                      setFieldErrors({ model: FIELD_HINT });
+                      return;
+                    }
+                    goTo("timing");
+                  }}
                 >
                   Volgende →
                 </button>
@@ -468,9 +520,12 @@ export function FormFunnel() {
             {step === "timing" && (
               <div className="form-step">
                 <select
-                  className="form-field"
+                  className={`form-field${fieldErrors.timing ? " is-invalid" : ""}`}
                   value={timing}
-                  onChange={(e) => setTiming(e.target.value)}
+                  onChange={(e) => {
+                    setTiming(e.target.value);
+                    clearFieldError("timing");
+                  }}
                 >
                   <option value="">Kies timing…</option>
                   {TIMING_OPTIONS.map((opt) => (
@@ -479,11 +534,19 @@ export function FormFunnel() {
                     </option>
                   ))}
                 </select>
+                {fieldErrors.timing && (
+                  <p className="form-field-error">{fieldErrors.timing}</p>
+                )}
                 <button
                   type="button"
                   className="form-next"
-                  disabled={!timing}
-                  onClick={() => goTo("name")}
+                  onClick={() => {
+                    if (!timing) {
+                      setFieldErrors({ timing: FIELD_HINT });
+                      return;
+                    }
+                    goTo("name");
+                  }}
                 >
                   Volgende →
                 </button>
@@ -500,18 +563,29 @@ export function FormFunnel() {
             {step === "name" && (
               <div className="form-step">
                 <input
-                  className="form-field"
+                  className={`form-field${fieldErrors.naam ? " is-invalid" : ""}`}
                   placeholder="Voornaam"
                   value={naam}
-                  onChange={(e) => setNaam(e.target.value)}
+                  onChange={(e) => {
+                    setNaam(e.target.value);
+                    clearFieldError("naam");
+                  }}
                   autoComplete="given-name"
                   enterKeyHint="next"
                 />
+                {fieldErrors.naam && (
+                  <p className="form-field-error">{fieldErrors.naam}</p>
+                )}
                 <button
                   type="button"
                   className="form-next"
-                  disabled={naam.trim().length < 2}
-                  onClick={() => goTo("loading")}
+                  onClick={() => {
+                    if (naam.trim().length < 2) {
+                      setFieldErrors({ naam: FIELD_HINT });
+                      return;
+                    }
+                    goTo("loading");
+                  }}
                 >
                   Volgende →
                 </button>
@@ -548,31 +622,38 @@ export function FormFunnel() {
 
             {step === "contact" && (
               <div className="form-step">
-                <form className="form-fields" onSubmit={submitLead}>
+                <form className="form-fields" onSubmit={submitLead} noValidate>
                   <input
-                    className="form-field"
-                    required
+                    className={`form-field${fieldErrors.email ? " is-invalid" : ""}`}
                     type="email"
                     inputMode="email"
                     placeholder="E-mail"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      clearFieldError("email");
+                    }}
                     autoComplete="email"
                   />
-                  <div className="form-phone">
+                  {fieldErrors.email && (
+                    <p className="form-field-error">{fieldErrors.email}</p>
+                  )}
+                  <div
+                    className={`form-phone${fieldErrors.telefoon ? " is-invalid" : ""}`}
+                  >
                     <span className="form-phone-flag" aria-hidden="true">
                       🇳🇱
                     </span>
                     <input
                       className="form-field form-phone-input"
-                      required
                       type="tel"
                       inputMode="tel"
                       placeholder="+31 6 12 34 56 78"
                       value={telefoon}
-                      onChange={(e) =>
-                        setTelefoon(formatNlMobileDisplay(e.target.value))
-                      }
+                      onChange={(e) => {
+                        setTelefoon(formatNlMobileDisplay(e.target.value));
+                        clearFieldError("telefoon");
+                      }}
                       onBlur={() => {
                         if (telefoon && !telefoon.startsWith("+31")) {
                           setTelefoon(formatNlMobileDisplay(telefoon));
@@ -582,19 +663,30 @@ export function FormFunnel() {
                       aria-label="Mobiel telefoonnummer"
                     />
                   </div>
+                  {fieldErrors.telefoon && (
+                    <p className="form-field-error">{fieldErrors.telefoon}</p>
+                  )}
                   <input
-                    className="form-field"
-                    required
+                    className={`form-field${fieldErrors.woonplaats ? " is-invalid" : ""}`}
                     placeholder="Woonplaats"
                     value={woonplaats}
-                    onChange={(e) => setWoonplaats(e.target.value)}
+                    onChange={(e) => {
+                      setWoonplaats(e.target.value);
+                      clearFieldError("woonplaats");
+                    }}
                     autoComplete="address-level2"
                   />
+                  {fieldErrors.woonplaats && (
+                    <p className="form-field-error">{fieldErrors.woonplaats}</p>
+                  )}
                   <label className="form-terms">
                     <input
                       type="checkbox"
                       checked={akkoord}
-                      onChange={(e) => setAkkoord(e.target.checked)}
+                      onChange={(e) => {
+                        setAkkoord(e.target.checked);
+                        clearFieldError("akkoord");
+                      }}
                     />
                     <span>
                       Ik ga akkoord met de{" "}
@@ -607,24 +699,29 @@ export function FormFunnel() {
                       </a>
                     </span>
                   </label>
+                  {fieldErrors.akkoord && (
+                    <p className="form-field-error form-field-error-left">
+                      {fieldErrors.akkoord}
+                    </p>
+                  )}
                   {error && <p className="form-error">{error}</p>}
                   <button
                     type="submit"
                     className="form-next"
-                    disabled={submitting || !akkoord}
+                    disabled={submitting}
                   >
                     {submitting
                       ? "Bezig…"
                       : "Meld mijn heftruck vrijblijvend aan"}
                   </button>
+                  <button
+                    type="button"
+                    className="form-back"
+                    onClick={() => goTo("name")}
+                  >
+                    ← Terug
+                  </button>
                 </form>
-                <button
-                  type="button"
-                  className="form-back"
-                  onClick={() => goTo("name")}
-                >
-                  ← Terug
-                </button>
               </div>
             )}
 
