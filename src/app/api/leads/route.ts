@@ -19,17 +19,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const lead = await crmCreateLead({
-      merk: String(merk),
-      model: model ? String(model) : "Onbekend",
-      timing: String(timing),
-      naam: String(naam).trim(),
-      email: String(email).trim(),
-      telefoon: String(telefoon).trim(),
-      woonplaats: String(woonplaats).trim(),
-    });
-
-    const ctx = await clientContextFromRequest(request);
     const cookieMeta = readMetaCookiesFromHeader(request.headers.get("cookie"));
     const fbp =
       (typeof body.fbp === "string" && body.fbp.trim()) ||
@@ -47,8 +36,28 @@ export async function POST(request: Request) {
       request.headers.get("referer") ||
       null;
 
-    // Fire-and-forget: lead opslaan mag niet falen door Meta
-    void sendMetaLeadEvent({
+    const lead = await crmCreateLead({
+      merk: String(merk),
+      model: model ? String(model) : "Onbekend",
+      timing: String(timing),
+      naam: String(naam).trim(),
+      email: String(email).trim(),
+      telefoon: String(telefoon).trim(),
+      woonplaats: String(woonplaats).trim(),
+      meta_fbp: fbp,
+      meta_fbc: fbc,
+      meta_fbclid: fbclid,
+    });
+
+    const ctx = await clientContextFromRequest(request);
+
+    // Zelfde event_id als browser-Pixel → Meta kan dedupliceren
+    const metaEventId =
+      (typeof body.metaEventId === "string" && body.metaEventId.trim()) ||
+      `lead-${lead.id}`;
+
+    // Await (niet fire-and-forget): serverless killt anders CAPI → lage Pixel-coverage
+    const result = await sendMetaLeadEvent({
       leadId: lead.id,
       email: lead.email,
       phone: lead.telefoon,
@@ -56,17 +65,35 @@ export async function POST(request: Request) {
       woonplaats: lead.woonplaats,
       merk: lead.merk,
       model: lead.model,
+      eventId: metaEventId,
       eventSourceUrl,
       fbp,
       fbc,
       clientIpAddress: ctx.clientIpAddress,
       clientUserAgent: ctx.clientUserAgent,
     });
+    console.info("[meta-capi:lead]", {
+      leadId: lead.id,
+      eventId: metaEventId,
+      ok: result.ok,
+      skipped: result.skipped,
+      eventsReceived: result.eventsReceived,
+      error: result.error,
+      hasFbc: Boolean(fbc),
+      hasFbp: Boolean(fbp),
+      hasFbclid: Boolean(fbclid),
+    });
+    if (!fbc) {
+      console.warn(
+        "[meta-capi:lead] Geen fbc/fbclid — lead wordt niet aan ad-klik gekoppeld",
+        { leadId: lead.id },
+      );
+    }
 
     return NextResponse.json({
       ok: true,
       id: lead.id,
-      metaEventId: `lead-${lead.id}`,
+      metaEventId,
     });
   } catch (error) {
     console.error(error);

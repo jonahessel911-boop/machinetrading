@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { getCompanyInfo } from "@/lib/company";
 import { buildContractPdf } from "@/lib/contract-pdf";
@@ -17,7 +17,7 @@ import { crmEnsureDraftInvoiceForDeal } from "@/lib/invoices";
 import { mpUnpublishForLead } from "@/lib/marketplace-data";
 import {
   clientContextFromRequest,
-  readMetaCookiesFromHeader,
+  fbcFromFbclid,
   sendMetaDealEvent,
 } from "@/lib/meta-capi";
 
@@ -167,24 +167,41 @@ export async function POST(request: Request) {
     });
 
     const ctx = await clientContextFromRequest(request);
-    const cookieMeta = readMetaCookiesFromHeader(request.headers.get("cookie"));
-    void sendMetaDealEvent({
-      leadId: lead.id,
-      contractId: contract.id,
-      email: lead.email,
-      phone: lead.telefoon,
-      naam: lead.naam,
-      woonplaats: lead.woonplaats,
-      merk: lead.merk,
-      model: lead.model,
-      value: lead.marge ?? lead.inkoopprijs ?? 0,
-      eventSourceUrl:
-        request.headers.get("referer") ||
-        `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.heftruckverkocht.nl"}/admin/leads/${lead.id}/deal`,
-      fbp: cookieMeta.fbp,
-      fbc: cookieMeta.fbc,
-      clientIpAddress: ctx.clientIpAddress,
-      clientUserAgent: ctx.clientUserAgent,
+    // Deal = alleen CAPI (geen Pixel in admin). Gebruik de click-id van de
+    // oorspronkelijke bezoeker (opgeslagen bij lead-aanmelding), niet admin-cookies.
+    const dealFbp = lead.meta_fbp ?? null;
+    const dealFbc =
+      lead.meta_fbc || fbcFromFbclid(lead.meta_fbclid) || null;
+
+    after(async () => {
+      const result = await sendMetaDealEvent({
+        leadId: lead.id,
+        contractId: contract.id,
+        email: lead.email,
+        phone: lead.telefoon,
+        naam: lead.naam,
+        woonplaats: lead.woonplaats,
+        merk: lead.merk,
+        model: lead.model,
+        value: lead.marge ?? lead.inkoopprijs ?? 0,
+        eventSourceUrl:
+          request.headers.get("referer") ||
+          `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.heftruckverkocht.nl"}/admin/leads/${lead.id}/deal`,
+        fbp: dealFbp,
+        fbc: dealFbc,
+        clientIpAddress: ctx.clientIpAddress,
+        clientUserAgent: ctx.clientUserAgent,
+      });
+      console.info("[meta-capi:deal]", {
+        leadId: lead.id,
+        contractId: contract.id,
+        ok: result.ok,
+        skipped: result.skipped,
+        eventsReceived: result.eventsReceived,
+        error: result.error,
+        hasFbc: Boolean(dealFbc),
+        hasFbp: Boolean(dealFbp),
+      });
     });
 
     return new NextResponse(Buffer.from(pdfBytes), {

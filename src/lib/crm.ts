@@ -185,6 +185,9 @@ export async function crmCreateLead(
       deal_datum: null,
       bedrijfsnaam: null,
       verkoopmedewerker: null,
+      meta_fbp: input.meta_fbp ?? null,
+      meta_fbc: input.meta_fbc ?? null,
+      meta_fbclid: input.meta_fbclid ?? null,
       buyer_id: null,
       created_at: now,
       updated_at: now,
@@ -210,6 +213,9 @@ export async function crmCreateLead(
       woonplaats: input.woonplaats,
       status: "nieuw",
       contact_attempts: 0,
+      meta_fbp: input.meta_fbp ?? null,
+      meta_fbc: input.meta_fbc ?? null,
+      meta_fbclid: input.meta_fbclid ?? null,
     })
     .select("*")
     .single();

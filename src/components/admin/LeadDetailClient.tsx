@@ -7,6 +7,7 @@ import { MANUAL_STATUSES, SALES_REPS, STATUS_LABELS } from "@/lib/constants";
 import type { Lead } from "@/lib/mappers";
 import type { MarketplaceListing } from "@/lib/marketplace";
 import { formatEuro, formatDateTime, labelForStatus } from "@/lib/status";
+import { PhotoGallery } from "@/components/marketplace/PhotoGallery";
 import {
   FinanceCalcFields,
   useFinanceCalc,
@@ -483,20 +484,11 @@ export function LeadDetailClient({
             </div>
             <div className="crm-card-body">
               {lead.photos && lead.photos.length > 0 ? (
-                <div className="crm-photo-grid">
-                  {lead.photos.map((p) => (
-                    <a
-                      key={p.id}
-                      href={p.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={p.originalName}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.url} alt={p.originalName} />
-                    </a>
-                  ))}
-                </div>
+                <PhotoGallery
+                  photos={lead.photos}
+                  gridClassName="crm-photo-grid"
+                  thumbClassName="crm-photo-thumb"
+                />
               ) : (
                 <p className="crm-muted">Nog geen foto&apos;s geüpload.</p>
               )}

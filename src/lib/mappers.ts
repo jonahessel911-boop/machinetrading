@@ -35,6 +35,10 @@ export type LeadRow = {
   bedrijfsnaam?: string | null;
   /** Verkoopmedewerker die de deal heeft gedaan */
   verkoopmedewerker?: string | null;
+  /** Meta attribution van bezoeker bij form-submit */
+  meta_fbp?: string | null;
+  meta_fbc?: string | null;
+  meta_fbclid?: string | null;
   buyer_id: string | null;
   created_at: string;
   updated_at: string;
@@ -122,6 +126,10 @@ export type Lead = {
   bedrijfsnaam: string | null;
   /** Verkoopmedewerker die de deal heeft gedaan */
   verkoopmedewerker: string | null;
+  /** Meta attribution (voor Deal CAPI) */
+  metaFbp: string | null;
+  metaFbc: string | null;
+  metaFbclid: string | null;
   buyerId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -203,6 +211,9 @@ export function mapLead(
     dealDatum: row.deal_datum ?? null,
     bedrijfsnaam: row.bedrijfsnaam ?? null,
     verkoopmedewerker: row.verkoopmedewerker ?? null,
+    metaFbp: row.meta_fbp ?? null,
+    metaFbc: row.meta_fbc ?? null,
+    metaFbclid: row.meta_fbclid ?? null,
     buyerId: row.buyer_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

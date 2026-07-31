@@ -13,6 +13,9 @@ import { BRANDS, TIMING_OPTIONS } from "@/lib/constants";
 import { formatNlMobileDisplay, toE164NlMobile } from "@/lib/phone";
 import { vehicleLabel } from "@/lib/status";
 import {
+  captureFbclidFromUrl,
+  createMetaEventId,
+  ensureFbp,
   readMetaBrowserCookies,
   trackMetaBrowserEvent,
 } from "@/components/MetaPixel";
@@ -50,6 +53,10 @@ type Persisted = {
   akkoord: boolean;
   leadId: string | null;
   buyerCount: number;
+  /** Meta click attribution — bewaren tot submit */
+  fbp?: string | null;
+  fbc?: string | null;
+  fbclid?: string | null;
 };
 
 function stepFromNum(n: number): Step {
@@ -101,17 +108,31 @@ export function FormFunnel() {
   const [photos, setPhotos] = useState<{ url: string; id: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
+  const [metaFbp, setMetaFbp] = useState<string | null>(stored.fbp ?? null);
+  const [metaFbc, setMetaFbc] = useState<string | null>(stored.fbc ?? null);
+  const [metaFbclid, setMetaFbclid] = useState<string | null>(
+    stored.fbclid ?? null,
+  );
 
   const label = useMemo(() => vehicleLabel(merk, model), [merk, model]);
 
   const goTo = useCallback(
     (next: Step, mode: "push" | "replace" = "push") => {
       setStep(next);
-      const path = `/form/${numFromStep(next)}`;
+      let path = `/form/${numFromStep(next)}`;
+      // fbclid meenemen in form-URL zodat attribution niet verloren gaat
+      const fbclid =
+        metaFbclid ||
+        (typeof window !== "undefined"
+          ? readMetaBrowserCookies().fbclid
+          : null);
+      if (fbclid) {
+        path += `?fbclid=${encodeURIComponent(fbclid)}`;
+      }
       if (mode === "replace") router.replace(path, { scroll: false });
       else router.push(path, { scroll: false });
     },
-    [router],
+    [router, metaFbclid],
   );
 
   // Sync from URL (browser back/forward or deep link)
@@ -119,6 +140,16 @@ export function FormFunnel() {
     if (urlStep !== step) setStep(urlStep);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlStep]);
+
+  // Snap Meta click-id bij binnenkomst formulier (en houd vast)
+  useEffect(() => {
+    captureFbclidFromUrl();
+    ensureFbp();
+    const { fbp, fbc, fbclid } = readMetaBrowserCookies();
+    if (fbp) setMetaFbp((prev) => prev || fbp);
+    if (fbc) setMetaFbc((prev) => prev || fbc);
+    if (fbclid) setMetaFbclid((prev) => prev || fbclid);
+  }, []);
 
   // Persist fields
   useEffect(() => {
@@ -133,6 +164,9 @@ export function FormFunnel() {
       akkoord,
       leadId,
       buyerCount,
+      fbp: metaFbp,
+      fbc: metaFbc,
+      fbclid: metaFbclid,
     };
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -150,6 +184,9 @@ export function FormFunnel() {
     akkoord,
     leadId,
     buyerCount,
+    metaFbp,
+    metaFbc,
+    metaFbclid,
   ]);
 
   const stepIndex =
@@ -268,6 +305,12 @@ export function FormFunnel() {
     setError("");
     try {
       const { fbp, fbc, fbclid } = readMetaBrowserCookies();
+      // Prefer snapshotted attribution from funnel (survives cookie clears)
+      const sendFbp = metaFbp || fbp;
+      const sendFbc = metaFbc || fbc;
+      const sendFbclid = metaFbclid || fbclid;
+      // Eén id voor browser-Pixel én server-CAPI (Meta deduplicatie)
+      const metaEventId = createMetaEventId("lead");
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -279,9 +322,10 @@ export function FormFunnel() {
           email,
           telefoon: phoneE164,
           woonplaats,
-          fbp,
-          fbc,
-          fbclid,
+          fbp: sendFbp,
+          fbc: sendFbc,
+          fbclid: sendFbclid,
+          metaEventId,
           eventSourceUrl:
             typeof window !== "undefined" ? window.location.href : undefined,
         }),
@@ -290,7 +334,7 @@ export function FormFunnel() {
       if (!res.ok) throw new Error(data.error || "Mislukt");
       setLeadId(data.id);
       trackMetaBrowserEvent("Lead", {
-        eventId: data.metaEventId || `lead-${data.id}`,
+        eventId: data.metaEventId || metaEventId,
         value: 0,
         currency: "EUR",
       });

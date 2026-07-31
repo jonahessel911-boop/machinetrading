@@ -265,6 +265,7 @@ export function sendMetaLeadEvent(opts: {
   woonplaats?: string | null;
   merk?: string | null;
   model?: string | null;
+  eventId?: string | null;
   eventSourceUrl?: string | null;
   fbp?: string | null;
   fbc?: string | null;
@@ -272,9 +273,11 @@ export function sendMetaLeadEvent(opts: {
   clientUserAgent?: string | null;
 }): Promise<MetaSendResult> {
   const machine = [opts.merk, opts.model].filter(Boolean).join(" ").trim();
+  const eventId =
+    (opts.eventId?.trim() && opts.eventId.trim()) || `lead-${opts.leadId}`;
   return sendMetaConversionEvent({
     eventName: "Lead",
-    eventId: `lead-${opts.leadId}`,
+    eventId,
     eventSourceUrl:
       opts.eventSourceUrl ||
       process.env.NEXT_PUBLIC_SITE_URL ||

@@ -8,7 +8,15 @@ type Photo = {
   originalName?: string;
 };
 
-export function PhotoGallery({ photos }: { photos: Photo[] }) {
+export function PhotoGallery({
+  photos,
+  gridClassName = "mp-photo-grid",
+  thumbClassName = "mp-photo-thumb",
+}: {
+  photos: Photo[];
+  gridClassName?: string;
+  thumbClassName?: string;
+}) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const close = useCallback(() => setOpenIndex(null), []);
@@ -43,12 +51,12 @@ export function PhotoGallery({ photos }: { photos: Photo[] }) {
 
   return (
     <>
-      <div className="mp-photo-grid">
+      <div className={gridClassName}>
         {photos.map((p, index) => (
           <button
             key={p.id}
             type="button"
-            className="mp-photo-thumb"
+            className={thumbClassName}
             onClick={() => setOpenIndex(index)}
             aria-label={`Foto ${index + 1} vergroten`}
           >

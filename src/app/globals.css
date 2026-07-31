@@ -1732,12 +1732,30 @@ img {
   gap: 0.55rem;
 }
 
-.crm-photo-grid img {
+.crm-photo-thumb {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.crm-photo-grid img,
+.crm-photo-thumb img {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 4px;
   border: 1px solid #dddbda;
+  display: block;
+  transition: transform 0.2s ease;
+}
+
+.crm-photo-thumb:hover img {
+  transform: scale(1.04);
 }
 
 .crm-toast {

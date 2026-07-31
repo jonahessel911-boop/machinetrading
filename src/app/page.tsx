@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FaqAccordion } from "@/components/FaqAccordion";
+import { FormCtaLink } from "@/components/FormCtaLink";
 import { SoldSlider } from "@/components/SoldSlider";
 
 export default function HomePage() {
@@ -18,7 +19,7 @@ export default function HomePage() {
           <nav className="nav">
             <a href="#hoe-werkt-het">Hoe het werkt</a>
             <a href="#waarom">Waarom wij</a>
-            <Link href="/form/1">Meld aan</Link>
+            <FormCtaLink href="/form/1">Meld aan</FormCtaLink>
           </nav>
         </div>
       </header>
@@ -39,9 +40,9 @@ export default function HomePage() {
                     jij er werk aan hebt.
                   </p>
                   <div className="hero-form-row">
-                    <Link href="/form/1" className="btn-black">
+                    <FormCtaLink href="/form/1" className="btn-black">
                       Meld mijn heftruck gratis aan →
-                    </Link>
+                    </FormCtaLink>
                   </div>
                 </div>
               </div>
@@ -201,9 +202,9 @@ export default function HomePage() {
             <h2>Meld je heftruck vandaag nog aan</h2>
             <p>Je zit nergens aan vast. Gewoon duidelijk en snel geregeld.</p>
             <div className="hero-form-row" style={{ justifyContent: "center" }}>
-              <Link href="/form/1" className="btn-black">
+              <FormCtaLink href="/form/1" className="btn-black">
                 Meld mijn heftruck gratis aan →
-              </Link>
+              </FormCtaLink>
             </div>
           </div>
         </section>
@@ -215,7 +216,7 @@ export default function HomePage() {
             <h4>HEFTRUCKVERKOCHT</h4>
             <a href="#waarom">Over ons</a>
             <a href="#hoe-werkt-het">Hoe het werkt</a>
-            <Link href="/form/1">Aanmelden</Link>
+            <FormCtaLink href="/form/1">Aanmelden</FormCtaLink>
           </div>
           <div>
             <h4>Hulp nodig?</h4>

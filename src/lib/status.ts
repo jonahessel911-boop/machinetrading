@@ -47,6 +47,7 @@ export function formatDateTime(date: Date | string): string {
   return new Intl.DateTimeFormat("nl-NL", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Europe/Amsterdam",
   }).format(d);
 }
 
