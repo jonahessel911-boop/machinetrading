@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { merk, model, timing, naam, email, telefoon, woonplaats } = body;
 
-    if (!merk || !timing || !naam || !email || !telefoon || !woonplaats) {
+    if (!merk || !timing || !naam || !email || !telefoon) {
       return NextResponse.json(
         { error: "Vul alle verplichte velden in." },
         { status: 400 },
@@ -43,7 +43,8 @@ export async function POST(request: Request) {
       naam: String(naam).trim(),
       email: String(email).trim(),
       telefoon: String(telefoon).trim(),
-      woonplaats: String(woonplaats).trim(),
+      woonplaats:
+        typeof woonplaats === "string" ? woonplaats.trim() : "",
       meta_fbp: fbp,
       meta_fbc: fbc,
       meta_fbclid: fbclid,

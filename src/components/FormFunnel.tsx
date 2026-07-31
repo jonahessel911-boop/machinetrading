@@ -237,7 +237,7 @@ export function FormFunnel() {
       case "loading":
         return `We zijn op zoek naar betrouwbare kopers voor je ${label === "heftruck" ? "heftruck" : label}…`;
       case "contact":
-        return `Gefeliciteerd ${naam.trim() || ""}! We hebben ${buyerCount} dealers gevonden die interesse hebben in jouw heftruck!`;
+        return `Gefeliciteerd ${naam.trim() || ""}! ${buyerCount} dealers hebben interesse in jouw heftruck.`;
       case "done":
         return "Aanmelding ontvangen";
       default:
@@ -312,7 +312,6 @@ export function FormFunnel() {
     else if (!toE164NlMobile(telefoon)) {
       nextErrors.telefoon = "Vul een geldig Nederlands mobiel nummer in";
     }
-    if (!woonplaats.trim()) nextErrors.woonplaats = FIELD_HINT;
     if (!akkoord) nextErrors.akkoord = FIELD_HINT;
     if (Object.keys(nextErrors).length) {
       setFieldErrors(nextErrors);
@@ -347,7 +346,7 @@ export function FormFunnel() {
           naam,
           email,
           telefoon: phoneE164,
-          woonplaats,
+          woonplaats: "",
           fbp: sendFbp,
           fbc: sendFbc,
           fbclid: sendFbclid,
@@ -656,105 +655,104 @@ export function FormFunnel() {
 
             {step === "contact" && (
               <div className="form-step">
-                <form className="form-fields" onSubmit={submitLead} noValidate>
-                  <input
-                    className={`form-field${fieldErrors.email ? " is-invalid" : ""}`}
-                    type="email"
-                    inputMode="email"
-                    placeholder="E-mail"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      clearFieldError("email");
-                    }}
-                    autoComplete="email"
-                  />
-                  {fieldErrors.email && (
-                    <p className="form-field-error">{fieldErrors.email}</p>
-                  )}
-                  <div
-                    className={`form-phone${fieldErrors.telefoon ? " is-invalid" : ""}`}
-                  >
-                    <span className="form-phone-flag" aria-hidden="true">
-                      🇳🇱
-                    </span>
+                <form
+                  className="form-fields form-contact"
+                  onSubmit={submitLead}
+                  noValidate
+                >
+                  <div className="form-contact-fields">
                     <input
-                      className="form-field form-phone-input"
-                      type="tel"
-                      inputMode="tel"
-                      placeholder="+31 6 12 34 56 78"
-                      value={telefoon}
+                      className={`form-field${fieldErrors.email ? " is-invalid" : ""}`}
+                      type="email"
+                      inputMode="email"
+                      placeholder="E-mail"
+                      value={email}
                       onChange={(e) => {
-                        setTelefoon(formatNlMobileDisplay(e.target.value));
-                        clearFieldError("telefoon");
+                        setEmail(e.target.value);
+                        clearFieldError("email");
                       }}
-                      onBlur={() => {
-                        if (telefoon && !telefoon.startsWith("+31")) {
-                          setTelefoon(formatNlMobileDisplay(telefoon));
-                        }
-                      }}
-                      autoComplete="tel"
-                      aria-label="Mobiel telefoonnummer"
+                      autoComplete="email"
                     />
+                    {fieldErrors.email && (
+                      <p className="form-field-error" role="alert">
+                        {fieldErrors.email}
+                      </p>
+                    )}
+                    <div
+                      className={`form-phone${fieldErrors.telefoon ? " is-invalid" : ""}`}
+                    >
+                      <span className="form-phone-flag" aria-hidden="true">
+                        🇳🇱
+                      </span>
+                      <input
+                        className="form-phone-input"
+                        type="tel"
+                        inputMode="tel"
+                        placeholder="+31 6 12 34 56 78"
+                        value={telefoon}
+                        onChange={(e) => {
+                          setTelefoon(formatNlMobileDisplay(e.target.value));
+                          clearFieldError("telefoon");
+                        }}
+                        onBlur={() => {
+                          if (telefoon && !telefoon.startsWith("+31")) {
+                            setTelefoon(formatNlMobileDisplay(telefoon));
+                          }
+                        }}
+                        autoComplete="tel"
+                        aria-label="Mobiel telefoonnummer"
+                      />
+                    </div>
+                    {fieldErrors.telefoon && (
+                      <p className="form-field-error" role="alert">
+                        {fieldErrors.telefoon}
+                      </p>
+                    )}
+                    <label className="form-terms">
+                      <input
+                        type="checkbox"
+                        checked={akkoord}
+                        onChange={(e) => {
+                          setAkkoord(e.target.checked);
+                          clearFieldError("akkoord");
+                        }}
+                      />
+                      <span>
+                        Ik ga akkoord met de{" "}
+                        <a
+                          href="/algemene-voorwaarden"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          algemene voorwaarden
+                        </a>
+                      </span>
+                    </label>
+                    {fieldErrors.akkoord && (
+                      <p className="form-field-error form-field-error-left">
+                        {fieldErrors.akkoord}
+                      </p>
+                    )}
+                    {error && <p className="form-error">{error}</p>}
                   </div>
-                  {fieldErrors.telefoon && (
-                    <p className="form-field-error">{fieldErrors.telefoon}</p>
-                  )}
-                  <input
-                    className={`form-field${fieldErrors.woonplaats ? " is-invalid" : ""}`}
-                    placeholder="Woonplaats"
-                    value={woonplaats}
-                    onChange={(e) => {
-                      setWoonplaats(e.target.value);
-                      clearFieldError("woonplaats");
-                    }}
-                    autoComplete="address-level2"
-                  />
-                  {fieldErrors.woonplaats && (
-                    <p className="form-field-error">{fieldErrors.woonplaats}</p>
-                  )}
-                  <label className="form-terms">
-                    <input
-                      type="checkbox"
-                      checked={akkoord}
-                      onChange={(e) => {
-                        setAkkoord(e.target.checked);
-                        clearFieldError("akkoord");
-                      }}
-                    />
-                    <span>
-                      Ik ga akkoord met de{" "}
-                      <a
-                        href="/algemene-voorwaarden"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        algemene voorwaarden
-                      </a>
-                    </span>
-                  </label>
-                  {fieldErrors.akkoord && (
-                    <p className="form-field-error form-field-error-left">
-                      {fieldErrors.akkoord}
-                    </p>
-                  )}
-                  {error && <p className="form-error">{error}</p>}
-                  <button
-                    type="submit"
-                    className="form-next"
-                    disabled={submitting}
-                  >
-                    {submitting
-                      ? "Bezig…"
-                      : "Meld mijn heftruck vrijblijvend aan"}
-                  </button>
-                  <button
-                    type="button"
-                    className="form-back"
-                    onClick={() => goTo("name")}
-                  >
-                    ← Terug
-                  </button>
+                  <div className="form-contact-actions">
+                    <button
+                      type="submit"
+                      className="form-next"
+                      disabled={submitting}
+                    >
+                      {submitting
+                        ? "Bezig…"
+                        : "Meld mijn heftruck vrijblijvend aan"}
+                    </button>
+                    <button
+                      type="button"
+                      className="form-back"
+                      onClick={() => goTo("name")}
+                    >
+                      ← Terug
+                    </button>
+                  </div>
                 </form>
               </div>
             )}
