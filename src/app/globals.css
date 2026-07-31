@@ -2697,6 +2697,55 @@ textarea.crm-input {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
 
+.photo-lightbox-placeholder,
+.photo-lightbox-full {
+  grid-area: 1 / 1;
+}
+
+.photo-lightbox-placeholder {
+  filter: blur(8px);
+  transform: scale(1.02);
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.photo-lightbox-placeholder.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.photo-lightbox-full {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.photo-lightbox-full.is-ready {
+  opacity: 1;
+}
+
+.photo-lightbox-spinner {
+  grid-area: 1 / 1;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.photo-lightbox-spinner span {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: photo-spin 0.7s linear infinite;
+}
+
+@keyframes photo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .mp-lightbox-counter {
   position: absolute;
   bottom: -2rem;
