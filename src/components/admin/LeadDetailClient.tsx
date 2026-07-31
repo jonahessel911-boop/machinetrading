@@ -8,10 +8,6 @@ import type { Lead } from "@/lib/mappers";
 import type { MarketplaceListing } from "@/lib/marketplace";
 import { formatEuro, formatDateTime, labelForStatus } from "@/lib/status";
 import { PhotoGallery } from "@/components/marketplace/PhotoGallery";
-import {
-  FinanceCalcFields,
-  useFinanceCalc,
-} from "./FinanceCalcFields";
 import { ShareToBuyerModal } from "./ShareToBuyerModal";
 
 function statusBadgeClass(status: string) {
@@ -60,11 +56,6 @@ export function LeadDetailClient({
     initialListing,
   );
   const [shareOpen, setShareOpen] = useState(false);
-  const finance = useFinanceCalc({
-    inkoopprijs: lead.inkoopprijs,
-    marge: lead.marge,
-    nettoInkoopprijs: lead.nettoInkoopprijs,
-  });
   const [straat, setStraat] = useState(lead.straat ?? "");
   const [huisnummer, setHuisnummer] = useState(lead.huisnummer ?? "");
   const [toevoeging, setToevoeging] = useState(lead.toevoeging ?? "");
@@ -89,7 +80,6 @@ export function LeadDetailClient({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Update mislukt");
       setLead(data);
-      finance.syncFromLead(data);
       setStraat(data.straat ?? "");
       setHuisnummer(data.huisnummer ?? "");
       setToevoeging(data.toevoeging ?? "");
@@ -116,16 +106,6 @@ export function LeadDetailClient({
         `Contactpoging geregistreerd (${updated.contactAttempts}/7).`,
       );
     }
-  }
-
-  async function saveFinance() {
-    const fin = finance.valuesForSave();
-    await patch({
-      inkoopprijs: fin.inkoopprijs,
-      marge: fin.marge,
-      nettoInkoopprijs: fin.nettoInkoopprijs,
-    });
-    setMessage("Inkoopprijs en marge opgeslagen.");
   }
 
   async function saveAddress() {
@@ -734,23 +714,6 @@ export function LeadDetailClient({
                     {STATUS_LABELS[s]}
                   </button>
                 ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="crm-card">
-            <div className="crm-card-head">Financieel (snel)</div>
-            <div className="crm-card-body">
-              <FinanceCalcFields finance={finance} />
-              <div style={{ marginTop: "0.85rem" }}>
-                <button
-                  type="button"
-                  className="crm-btn crm-btn-primary"
-                  disabled={busy}
-                  onClick={saveFinance}
-                >
-                  Opslaan
-                </button>
               </div>
             </div>
           </div>
