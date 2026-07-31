@@ -87,7 +87,6 @@ export function FormFunnel() {
 
   const stored = useMemo(() => readStored(), []);
 
-  const [step, setStep] = useState<Step>(urlStep);
   const [merk, setMerk] = useState(stored.merk ?? "");
   const [model, setModel] = useState(stored.model ?? "");
   const [timing, setTiming] = useState(stored.timing ?? "");
@@ -118,11 +117,16 @@ export function FormFunnel() {
 
   const label = useMemo(() => vehicleLabel(merk, model), [merk, model]);
 
+  // Optimistic step so UI updates immediately; URL remains source of truth
+  const [pendingStep, setPendingStep] = useState<Step | null>(null);
+  const step = pendingStep ?? urlStep;
+
   const goTo = useCallback(
     (next: Step, mode: "push" | "replace" = "push") => {
-      setStep(next);
+      setFieldErrors({});
+      setError("");
+      setPendingStep(next);
       let path = `/form/${numFromStep(next)}`;
-      // fbclid meenemen in form-URL zodat attribution niet verloren gaat
       const fbclid =
         metaFbclid ||
         (typeof window !== "undefined"
@@ -137,16 +141,9 @@ export function FormFunnel() {
     [router, metaFbclid],
   );
 
-  // Sync from URL (browser back/forward or deep link)
   useEffect(() => {
-    if (urlStep !== step) setStep(urlStep);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setPendingStep(null);
   }, [urlStep]);
-
-  useEffect(() => {
-    setFieldErrors({});
-    setError("");
-  }, [step]);
 
   function clearFieldError(key: string) {
     setFieldErrors((prev) => {
@@ -265,11 +262,12 @@ export function FormFunnel() {
       goTo("contact", "replace");
       return;
     }
+    const merkOk = Boolean(merk);
     if (
       (step === "loading" || step === "contact") &&
-      (!merk || !timing || naam.trim().length < 2)
+      (!merkOk || !timing || naam.trim().length < 2)
     ) {
-      if (!merk) goTo("brand", "replace");
+      if (!merkOk) goTo("brand", "replace");
       else if (!timing) goTo("timing", "replace");
       else goTo("name", "replace");
     }
@@ -423,179 +421,215 @@ export function FormFunnel() {
           <div className="form-card-body">
             {step === "brand" && (
               <div className="form-step">
-                <select
-                  className={`form-field${fieldErrors.merk ? " is-invalid" : ""}`}
-                  value={merk === "Onbekend" ? "" : merk}
-                  onChange={(e) => {
-                    setMerk(e.target.value);
-                    clearFieldError("merk");
-                  }}
-                >
-                  <option value="">Kies een merk…</option>
-                  {BRANDS.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-                {fieldErrors.merk && (
-                  <p className="form-field-error">{fieldErrors.merk}</p>
-                )}
-                <button
-                  type="button"
-                  className="form-ghost"
-                  onClick={() => {
-                    setMerk("Onbekend");
-                    setFieldErrors({});
-                    goTo("model");
-                  }}
-                >
-                  Ik weet het niet / anders
-                </button>
-                <button
-                  type="button"
-                  className="form-next"
-                  onClick={() => {
-                    if (!merk || merk === "Onbekend") {
+                <form
+                  className="form-step-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const value = String(
+                      new FormData(e.currentTarget).get("merk") || "",
+                    ).trim();
+                    if (!value) {
                       setFieldErrors({ merk: FIELD_HINT });
                       return;
                     }
+                    setMerk(value);
                     goTo("model");
                   }}
                 >
-                  Volgende →
-                </button>
+                  <select
+                    name="merk"
+                    className={`form-field${fieldErrors.merk ? " is-invalid" : ""}`}
+                    value={merk === "Onbekend" ? "" : merk}
+                    onChange={(e) => {
+                      setMerk(e.target.value);
+                      clearFieldError("merk");
+                    }}
+                  >
+                    <option value="">Kies een merk…</option>
+                    {BRANDS.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                  {fieldErrors.merk && (
+                    <p className="form-field-error" role="alert">
+                      {fieldErrors.merk}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="form-ghost"
+                    onClick={() => {
+                      setMerk("Onbekend");
+                      setFieldErrors({});
+                      goTo("model");
+                    }}
+                  >
+                    Ik weet het niet / anders
+                  </button>
+                  <button type="submit" className="form-next">
+                    Volgende →
+                  </button>
+                </form>
               </div>
             )}
 
             {step === "model" && (
               <div className="form-step">
-                <input
-                  className={`form-field${fieldErrors.model ? " is-invalid" : ""}`}
-                  placeholder="Model (bijv. RX60-35)"
-                  value={model === "Onbekend" ? "" : model}
-                  onChange={(e) => {
-                    setModel(e.target.value);
-                    clearFieldError("model");
-                  }}
-                  autoComplete="off"
-                />
-                {fieldErrors.model && (
-                  <p className="form-field-error">{fieldErrors.model}</p>
-                )}
-                <button
-                  type="button"
-                  className="form-ghost"
-                  onClick={() => {
-                    setModel("Onbekend");
-                    setFieldErrors({});
-                    goTo("timing");
-                  }}
-                >
-                  Ik weet het niet
-                </button>
-                <button
-                  type="button"
-                  className="form-next"
-                  onClick={() => {
-                    if (!model.trim() || model === "Onbekend") {
+                <form
+                  className="form-step-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const value = String(
+                      new FormData(e.currentTarget).get("model") || "",
+                    ).trim();
+                    if (!value) {
                       setFieldErrors({ model: FIELD_HINT });
                       return;
                     }
+                    setModel(value);
                     goTo("timing");
                   }}
                 >
-                  Volgende →
-                </button>
-                <button
-                  type="button"
-                  className="form-back"
-                  onClick={() => goTo("brand")}
-                >
-                  ← Terug
-                </button>
+                  <input
+                    name="model"
+                    className={`form-field${fieldErrors.model ? " is-invalid" : ""}`}
+                    placeholder="Model (bijv. RX60-35)"
+                    value={model === "Onbekend" ? "" : model}
+                    onChange={(e) => {
+                      setModel(e.target.value);
+                      clearFieldError("model");
+                    }}
+                    autoComplete="off"
+                  />
+                  {fieldErrors.model && (
+                    <p className="form-field-error" role="alert">
+                      {fieldErrors.model}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="form-ghost"
+                    onClick={() => {
+                      setModel("Onbekend");
+                      setFieldErrors({});
+                      goTo("timing");
+                    }}
+                  >
+                    Ik weet het niet
+                  </button>
+                  <button type="submit" className="form-next">
+                    Volgende →
+                  </button>
+                  <button
+                    type="button"
+                    className="form-back"
+                    onClick={() => goTo("brand")}
+                  >
+                    ← Terug
+                  </button>
+                </form>
               </div>
             )}
 
             {step === "timing" && (
               <div className="form-step">
-                <select
-                  className={`form-field${fieldErrors.timing ? " is-invalid" : ""}`}
-                  value={timing}
-                  onChange={(e) => {
-                    setTiming(e.target.value);
-                    clearFieldError("timing");
-                  }}
-                >
-                  <option value="">Kies timing…</option>
-                  {TIMING_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-                {fieldErrors.timing && (
-                  <p className="form-field-error">{fieldErrors.timing}</p>
-                )}
-                <button
-                  type="button"
-                  className="form-next"
-                  onClick={() => {
-                    if (!timing) {
+                <form
+                  className="form-step-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const value = String(
+                      new FormData(e.currentTarget).get("timing") || "",
+                    ).trim();
+                    if (!value) {
                       setFieldErrors({ timing: FIELD_HINT });
                       return;
                     }
+                    setTiming(value);
                     goTo("name");
                   }}
                 >
-                  Volgende →
-                </button>
-                <button
-                  type="button"
-                  className="form-back"
-                  onClick={() => goTo("model")}
-                >
-                  ← Terug
-                </button>
+                  <select
+                    name="timing"
+                    className={`form-field${fieldErrors.timing ? " is-invalid" : ""}`}
+                    value={timing}
+                    onChange={(e) => {
+                      setTiming(e.target.value);
+                      clearFieldError("timing");
+                    }}
+                  >
+                    <option value="">Kies timing…</option>
+                    {TIMING_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                  {fieldErrors.timing && (
+                    <p className="form-field-error" role="alert">
+                      {fieldErrors.timing}
+                    </p>
+                  )}
+                  <button type="submit" className="form-next">
+                    Volgende →
+                  </button>
+                  <button
+                    type="button"
+                    className="form-back"
+                    onClick={() => goTo("model")}
+                  >
+                    ← Terug
+                  </button>
+                </form>
               </div>
             )}
 
             {step === "name" && (
               <div className="form-step">
-                <input
-                  className={`form-field${fieldErrors.naam ? " is-invalid" : ""}`}
-                  placeholder="Voornaam"
-                  value={naam}
-                  onChange={(e) => {
-                    setNaam(e.target.value);
-                    clearFieldError("naam");
-                  }}
-                  autoComplete="given-name"
-                  enterKeyHint="next"
-                />
-                {fieldErrors.naam && (
-                  <p className="form-field-error">{fieldErrors.naam}</p>
-                )}
-                <button
-                  type="button"
-                  className="form-next"
-                  onClick={() => {
-                    if (naam.trim().length < 2) {
+                <form
+                  className="form-step-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const value = String(
+                      new FormData(e.currentTarget).get("naam") || "",
+                    ).trim();
+                    if (value.length < 2) {
                       setFieldErrors({ naam: FIELD_HINT });
                       return;
                     }
+                    setNaam(value);
                     goTo("loading");
                   }}
                 >
-                  Volgende →
-                </button>
-                <button
-                  type="button"
-                  className="form-back"
-                  onClick={() => goTo("timing")}
-                >
-                  ← Terug
-                </button>
+                  <input
+                    name="naam"
+                    className={`form-field${fieldErrors.naam ? " is-invalid" : ""}`}
+                    placeholder="Voornaam"
+                    value={naam}
+                    onChange={(e) => {
+                      setNaam(e.target.value);
+                      clearFieldError("naam");
+                    }}
+                    autoComplete="given-name"
+                    enterKeyHint="next"
+                  />
+                  {fieldErrors.naam && (
+                    <p className="form-field-error" role="alert">
+                      {fieldErrors.naam}
+                    </p>
+                  )}
+                  <button type="submit" className="form-next">
+                    Volgende →
+                  </button>
+                  <button
+                    type="button"
+                    className="form-back"
+                    onClick={() => goTo("timing")}
+                  >
+                    ← Terug
+                  </button>
+                </form>
               </div>
             )}
 
