@@ -9,12 +9,13 @@ export function MarketplaceChrome({
   children,
   demo = false,
 }: {
-  dealer: DealerSession;
+  dealer: DealerSession | null;
   children: React.ReactNode;
   demo?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const isGuest = !dealer;
 
   function isActive(href: string) {
     if (href === "/marketplace") {
@@ -23,7 +24,6 @@ export function MarketplaceChrome({
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
-  // Veilingen active only on listing pages, not facturen/instellingen
   function veilingenActive() {
     if (pathname === "/marketplace") return true;
     if (pathname.startsWith("/marketplace/facturen")) return false;
@@ -33,15 +33,17 @@ export function MarketplaceChrome({
 
   async function logout() {
     await fetch("/api/dealer/logout", { method: "POST" });
-    router.push("/dealer/login");
+    router.push("/marketplace");
     router.refresh();
   }
+
+  const loginHref = `/dealer/login?next=${encodeURIComponent(pathname || "/marketplace")}`;
 
   return (
     <div className="crm-body mp-public">
       <header className="crm-global-header">
         <Link href="/marketplace" className="crm-brand">
-          <span>Sales CRM</span>
+          <span>Marketplace</span>
         </Link>
         <nav className="crm-tabs">
           <Link
@@ -50,33 +52,54 @@ export function MarketplaceChrome({
           >
             Actieve veilingen
           </Link>
-          <Link
-            href="/marketplace/facturen"
-            className={isActive("/marketplace/facturen") ? "active" : ""}
-          >
-            Facturen
-          </Link>
-          <Link
-            href="/marketplace/instellingen"
-            className={isActive("/marketplace/instellingen") ? "active" : ""}
-          >
-            Instellingen
-          </Link>
+          {!isGuest && (
+            <>
+              <Link
+                href="/marketplace/facturen"
+                className={isActive("/marketplace/facturen") ? "active" : ""}
+              >
+                Facturen
+              </Link>
+              <Link
+                href="/marketplace/instellingen"
+                className={
+                  isActive("/marketplace/instellingen") ? "active" : ""
+                }
+              >
+                Instellingen
+              </Link>
+            </>
+          )}
         </nav>
         <div className="crm-header-actions">
-          <span className="crm-dealer-name">{dealer.bedrijf}</span>
-          <button
-            type="button"
-            className="crm-btn crm-btn-neutral"
-            onClick={logout}
-          >
-            Uitloggen
-          </button>
+          {isGuest ? (
+            <Link href={loginHref} className="crm-btn crm-btn-primary">
+              Inloggen
+            </Link>
+          ) : (
+            <>
+              <span className="crm-dealer-name">{dealer.bedrijf}</span>
+              <button
+                type="button"
+                className="crm-btn crm-btn-neutral"
+                onClick={logout}
+              >
+                Uitloggen
+              </button>
+            </>
+          )}
         </div>
       </header>
       {demo && (
         <div className="crm-demo-banner">
           Demo-modus — geen Supabase gekoppeld (lege lokale store).
+        </div>
+      )}
+      {isGuest && (
+        <div className="mp-guest-banner">
+          Je bekijkt als gast.{" "}
+          <Link href={loginHref}>Log in</Link> om prijzen, biedingen en
+          beschrijvingen te zien en te bieden.
         </div>
       )}
       <main className="crm-main">{children}</main>

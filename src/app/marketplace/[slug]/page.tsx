@@ -1,12 +1,13 @@
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { MarketplaceDetailClient } from "@/components/marketplace/MarketplaceDetailClient";
 import { MarketplaceChrome } from "@/components/marketplace/MarketplaceChrome";
+import { AuctionTimer } from "@/components/marketplace/AuctionTimer";
+import { LoginToView } from "@/components/marketplace/LoginToView";
 import { isDemoMode } from "@/lib/crm";
 import { getDealerSession } from "@/lib/dealer-auth";
-import { listingTitle } from "@/lib/marketplace";
+import { listingTitle, sanitizeListingForGuest } from "@/lib/marketplace";
 import { mpGetBySlug } from "@/lib/marketplace-data";
 import { formatEuro } from "@/lib/status";
-import { AuctionTimer } from "@/components/marketplace/AuctionTimer";
 
 export default async function MarketplaceListingPage({
   params,
@@ -14,11 +15,13 @@ export default async function MarketplaceListingPage({
   params: Promise<{ slug: string }>;
 }) {
   const dealer = await getDealerSession();
-  if (!dealer) redirect("/dealer/login");
-
   const { slug } = await params;
-  const listing = await mpGetBySlug(slug, { includeExpired: true });
-  if (!listing) notFound();
+  const raw = await mpGetBySlug(slug, { includeExpired: true });
+  if (!raw) notFound();
+
+  const isGuest = !dealer;
+  const listing = isGuest ? sanitizeListingForGuest(raw) : raw;
+  const loginHref = `/dealer/login?next=${encodeURIComponent(`/marketplace/${slug}`)}`;
 
   return (
     <MarketplaceChrome dealer={dealer} demo={isDemoMode()}>
@@ -38,7 +41,14 @@ export default async function MarketplaceListingPage({
           <h1 className="crm-title">{listingTitle(listing)}</h1>
         </div>
         <div>
-          {listing.highestBid != null ? (
+          {isGuest ? (
+            <LoginToView href={loginHref} compact className="mp-header-gated">
+              <div className="crm-stat" style={{ minWidth: 160 }}>
+                <span>Hoogste bod</span>
+                <strong>€ 12.500</strong>
+              </div>
+            </LoginToView>
+          ) : listing.highestBid != null ? (
             <div className="crm-stat" style={{ minWidth: 160 }}>
               <span>Hoogste bod</span>
               <strong>{formatEuro(listing.highestBid)}</strong>
@@ -52,7 +62,10 @@ export default async function MarketplaceListingPage({
         </div>
       </div>
 
-      <MarketplaceDetailClient initialListing={listing} />
+      <MarketplaceDetailClient
+        initialListing={listing}
+        isGuest={isGuest}
+      />
     </MarketplaceChrome>
   );
 }

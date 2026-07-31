@@ -2547,6 +2547,104 @@ textarea.crm-input {
   background: #f3f3f3;
 }
 
+.mp-guest-banner {
+  background: #fff4e5;
+  border-bottom: 1px solid #f3c78a;
+  color: #8a4b08;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.mp-guest-banner a {
+  color: #8a4b08;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.mp-gated {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  min-height: 3.5rem;
+}
+
+.mp-gated--compact {
+  min-height: 2.25rem;
+  display: block;
+  width: 100%;
+}
+
+.mp-gated-blur {
+  filter: blur(7px);
+  user-select: none;
+  pointer-events: none;
+  transform: scale(1.02);
+}
+
+.mp-gated-cta {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
+  max-width: calc(100% - 1rem);
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(26, 29, 35, 0.92);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.mp-gated-cta:hover {
+  background: #000;
+  color: #fff;
+}
+
+.mp-header-gated {
+  min-width: 160px;
+}
+
+.mp-header-gated .crm-stat {
+  margin: 0;
+}
+
+.mp-card-login-badge {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.55rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  background: rgba(255, 248, 235, 0.95);
+  color: #5c3a12;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mp-muted-gate {
+  color: #8a8a8a;
+  font-style: italic;
+}
+
+.mp-login-bid-card .crm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .mp-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -2570,6 +2668,7 @@ textarea.crm-input {
 }
 
 .mp-card-thumb {
+  position: relative;
   aspect-ratio: 16 / 10;
   background: #ecebea;
   overflow: hidden;

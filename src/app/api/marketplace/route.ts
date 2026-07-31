@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { getDealerSession } from "@/lib/dealer-auth";
+import {
+  sanitizeListingForGuest,
+  sanitizeListingsForGuest,
+} from "@/lib/marketplace";
 import { mpGetBySlug, mpListPublic, mpPlaceBid } from "@/lib/marketplace-data";
 
 export async function GET(request: Request) {
   const session = await getDealerSession();
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get("slug");
 
@@ -17,10 +17,14 @@ export async function GET(request: Request) {
       if (!listing) {
         return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
       }
-      return NextResponse.json(listing);
+      return NextResponse.json(
+        session ? listing : sanitizeListingForGuest(listing),
+      );
     }
     const listings = await mpListPublic();
-    return NextResponse.json(listings);
+    return NextResponse.json(
+      session ? listings : sanitizeListingsForGuest(listings),
+    );
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Fout" },

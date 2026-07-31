@@ -143,3 +143,26 @@ export function listingTitle(listing: {
 }): string {
   return [listing.merk, listing.model].filter(Boolean).join(" ");
 }
+
+/**
+ * Verwijdert gevoelige velden voor niet-ingelogde bezoekers
+ * (voorkomt lekken via HTML/JSON).
+ */
+export function sanitizeListingForGuest(
+  listing: MarketplaceListing,
+): MarketplaceListing {
+  return {
+    ...listing,
+    omschrijving: null,
+    highestBid: null,
+    bids: [],
+    bidCount: 0,
+  };
+}
+
+export function sanitizeListingsForGuest(
+  listings: MarketplaceListing[],
+): MarketplaceListing[] {
+  return listings.map(sanitizeListingForGuest);
+}
+

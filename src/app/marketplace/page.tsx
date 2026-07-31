@@ -1,15 +1,14 @@
-import { redirect } from "next/navigation";
 import { MarketplaceBrowse } from "@/components/marketplace/MarketplaceBrowse";
 import { MarketplaceChrome } from "@/components/marketplace/MarketplaceChrome";
 import { isDemoMode } from "@/lib/crm";
 import { getDealerSession } from "@/lib/dealer-auth";
+import { sanitizeListingsForGuest } from "@/lib/marketplace";
 import { mpListPublic } from "@/lib/marketplace-data";
 
 export default async function MarketplacePage() {
   const dealer = await getDealerSession();
-  if (!dealer) redirect("/dealer/login");
-
-  const listings = await mpListPublic();
+  const raw = await mpListPublic();
+  const listings = dealer ? raw : sanitizeListingsForGuest(raw);
 
   return (
     <MarketplaceChrome dealer={dealer} demo={isDemoMode()}>
@@ -22,7 +21,7 @@ export default async function MarketplacePage() {
         </div>
       </div>
 
-      <MarketplaceBrowse listings={listings} />
+      <MarketplaceBrowse listings={listings} isGuest={!dealer} />
     </MarketplaceChrome>
   );
 }
