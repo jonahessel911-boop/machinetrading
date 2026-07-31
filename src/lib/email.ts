@@ -160,7 +160,9 @@ export function marketplaceShareEmail(opts: {
   endsAt: string;
 }): { subject: string; text: string; html: string } {
   const company = getCompanyInfo();
-  const ends = new Date(opts.endsAt).toLocaleString("nl-NL");
+  const ends = new Date(opts.endsAt).toLocaleString("nl-NL", {
+    timeZone: "Europe/Amsterdam",
+  });
   const subject = `Heftruck te koop: ${opts.listingTitle} (${opts.woonplaats})`;
   const text = [
     `Beste ${opts.toName},`,

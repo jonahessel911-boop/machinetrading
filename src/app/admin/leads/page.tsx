@@ -6,7 +6,7 @@ import { isAuthenticated } from "@/lib/auth";
 import { STATUS_LABELS } from "@/lib/constants";
 import { crmListLeads, isDemoMode } from "@/lib/crm";
 import { formatAddress } from "@/lib/mappers";
-import { labelForStatus } from "@/lib/status";
+import { formatDateTime, labelForStatus } from "@/lib/status";
 
 function badgeClass(status: string) {
   if (status === "nieuw") return "crm-badge crm-badge-nieuw";
@@ -134,7 +134,7 @@ export default async function AdminLeadsPage({
                 </td>
                 <td>{lead.photos?.length ?? 0}</td>
                 <td>{lead.buyer?.bedrijf ?? "—"}</td>
-                <td>{new Date(lead.createdAt).toLocaleString("nl-NL")}</td>
+                <td>{formatDateTime(lead.createdAt)}</td>
               </ClickableRow>
             ))}
             {leads.length === 0 && (

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import { getDemoStore, isDemoMode, newId } from "@/lib/demo-store";
 import { mapPhoto, type LeadPhotoRow } from "@/lib/mappers";
 import { getSupabaseAdmin } from "@/lib/supabase";
@@ -16,6 +17,46 @@ const ALLOWED = new Set([
 ]);
 
 const MAX_BYTES = 8 * 1024 * 1024;
+
+/** Verklein/compresseer voor snellere admin + marketplace loads */
+async function optimizeImage(
+  buffer: Buffer,
+  mimeType: string,
+): Promise<{ buffer: Buffer; contentType: string; ext: string }> {
+  try {
+    const pipeline = sharp(buffer, { failOn: "none" }).rotate();
+    const meta = await pipeline.metadata();
+    const width = meta.width ?? 0;
+    const resized =
+      width > 1920
+        ? pipeline.resize(1920, 1920, {
+            fit: "inside",
+            withoutEnlargement: true,
+          })
+        : pipeline;
+
+    // HEIC/PNG → JPEG voor kleinere bestanden; webp behouden als incoming webp
+    if (mimeType.includes("webp")) {
+      const out = await resized.webp({ quality: 78 }).toBuffer();
+      return { buffer: out, contentType: "image/webp", ext: ".webp" };
+    }
+
+    const out = await resized.jpeg({ quality: 80, mozjpeg: true }).toBuffer();
+    return { buffer: out, contentType: "image/jpeg", ext: ".jpg" };
+  } catch (err) {
+    console.warn("[photos:optimize] fallback naar origineel", err);
+    const ext = mimeType.includes("png")
+      ? ".png"
+      : mimeType.includes("webp")
+        ? ".webp"
+        : ".jpg";
+    return {
+      buffer,
+      contentType: mimeType || "image/jpeg",
+      ext,
+    };
+  }
+}
 
 export async function POST(request: Request, { params }: Params) {
   try {
@@ -116,14 +157,15 @@ export async function POST(request: Request, { params }: Params) {
           : file.type.includes("webp")
             ? ".webp"
             : ".jpg";
-      const filename = `${randomUUID()}${ext}`;
+      const raw = Buffer.from(await file.arrayBuffer());
+      const optimized = await optimizeImage(raw, file.type || "image/jpeg");
+      const filename = `${randomUUID()}${optimized.ext || ext}`;
       const storagePath = `leads/${id}/${filename}`;
-      const buffer = Buffer.from(await file.arrayBuffer());
 
       const { error: uploadError } = await supabase.storage
         .from("lead-photos")
-        .upload(storagePath, buffer, {
-          contentType: file.type || "image/jpeg",
+        .upload(storagePath, optimized.buffer, {
+          contentType: optimized.contentType,
           upsert: false,
         });
 
@@ -145,8 +187,8 @@ export async function POST(request: Request, { params }: Params) {
           lead_id: id,
           filename,
           original_name: file.name,
-          mime_type: file.type || "image/jpeg",
-          size: file.size,
+          mime_type: optimized.contentType,
+          size: optimized.buffer.length,
           url: publicUrl.publicUrl,
           storage_path: storagePath,
         })

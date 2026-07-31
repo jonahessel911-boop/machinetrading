@@ -1744,7 +1744,9 @@ img {
 }
 
 .crm-photo-grid img,
-.crm-photo-thumb img {
+.crm-photo-thumb img,
+.crm-photo-thumb .photo-thumb-img,
+.mp-photo-thumb .photo-thumb-img {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
@@ -1752,10 +1754,29 @@ img {
   border: 1px solid #dddbda;
   display: block;
   transition: transform 0.2s ease;
+  height: auto;
 }
 
-.crm-photo-thumb:hover img {
+.mp-photo-thumb .photo-thumb-img {
+  aspect-ratio: 4 / 3;
+  border-radius: 0;
+  border: none;
+}
+
+.crm-photo-thumb:hover img,
+.crm-photo-thumb:hover .photo-thumb-img,
+.mp-photo-thumb:hover .photo-thumb-img {
   transform: scale(1.04);
+}
+
+.photo-lightbox-img {
+  max-width: min(92vw, 1100px);
+  max-height: 86vh;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
 
 .crm-toast {
@@ -2665,7 +2686,8 @@ textarea.crm-input {
   max-height: 100vh;
 }
 
-.mp-lightbox-stage img {
+.mp-lightbox-stage img,
+.mp-lightbox-stage .photo-lightbox-img {
   max-width: min(92vw, 1100px);
   max-height: 86vh;
   width: auto;

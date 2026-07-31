@@ -6,7 +6,7 @@ import { DashboardReport } from "@/components/admin/DashboardReport";
 import { isAuthenticated } from "@/lib/auth";
 import { crmListLeads, crmStats, isDemoMode } from "@/lib/crm";
 import { crmDashboardSeries } from "@/lib/period-data";
-import { labelForStatus } from "@/lib/status";
+import { formatDateTime, labelForStatus } from "@/lib/status";
 
 function badgeClass(status: string) {
   if (status === "nieuw") return "crm-badge crm-badge-nieuw";
@@ -89,7 +89,7 @@ export default async function AdminDashboardPage() {
                     </span>
                   </td>
                   <td>{lead.photos?.length ?? 0}</td>
-                  <td>{new Date(lead.createdAt).toLocaleString("nl-NL")}</td>
+                  <td>{formatDateTime(lead.createdAt)}</td>
                 </ClickableRow>
               ))}
               {recent.length === 0 && (

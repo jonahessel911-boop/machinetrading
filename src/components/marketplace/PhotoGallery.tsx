@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useCallback, useState } from "react";
 
 type Photo = {
@@ -7,6 +8,10 @@ type Photo = {
   url: string;
   originalName?: string;
 };
+
+function isRemoteHttp(url: string) {
+  return /^https?:\/\//i.test(url);
+}
 
 export function PhotoGallery({
   photos,
@@ -49,6 +54,8 @@ export function PhotoGallery({
     return <p className="crm-muted">Geen foto&apos;s beschikbaar.</p>;
   }
 
+  const open = openIndex != null ? photos[openIndex] : null;
+
   return (
     <>
       <div className={gridClassName}>
@@ -60,13 +67,32 @@ export function PhotoGallery({
             onClick={() => setOpenIndex(index)}
             aria-label={`Foto ${index + 1} vergroten`}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p.url} alt={p.originalName ?? `Foto ${index + 1}`} />
+            {isRemoteHttp(p.url) ? (
+              <Image
+                src={p.url}
+                alt={p.originalName ?? `Foto ${index + 1}`}
+                width={280}
+                height={280}
+                sizes="(max-width: 700px) 33vw, 120px"
+                quality={60}
+                loading="lazy"
+                className="photo-thumb-img"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={p.url}
+                alt={p.originalName ?? `Foto ${index + 1}`}
+                loading="lazy"
+                decoding="async"
+                className="photo-thumb-img"
+              />
+            )}
           </button>
         ))}
       </div>
 
-      {openIndex != null && (
+      {open && openIndex != null && (
         <div
           className="mp-lightbox"
           role="dialog"
@@ -101,13 +127,28 @@ export function PhotoGallery({
             className="mp-lightbox-stage"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photos[openIndex].url}
-              alt={
-                photos[openIndex].originalName ?? `Foto ${openIndex + 1}`
-              }
-            />
+            {isRemoteHttp(open.url) ? (
+              <Image
+                key={open.id}
+                src={open.url}
+                alt={open.originalName ?? `Foto ${openIndex + 1}`}
+                width={1600}
+                height={1200}
+                sizes="92vw"
+                quality={80}
+                priority
+                className="photo-lightbox-img"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={open.id}
+                src={open.url}
+                alt={open.originalName ?? `Foto ${openIndex + 1}`}
+                decoding="async"
+                className="photo-lightbox-img"
+              />
+            )}
             <div className="mp-lightbox-counter">
               {openIndex + 1} / {photos.length}
             </div>
