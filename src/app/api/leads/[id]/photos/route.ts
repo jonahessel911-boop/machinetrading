@@ -162,9 +162,12 @@ export async function POST(request: Request, { params }: Params) {
       const filename = `${randomUUID()}${optimized.ext || ext}`;
       const storagePath = `leads/${id}/${filename}`;
 
+      // Uint8Array — Node Buffer wordt anders als UTF-8 tekst geüpload (corrupte JPEG)
+      const bytes = new Uint8Array(optimized.buffer);
+
       const { error: uploadError } = await supabase.storage
         .from("lead-photos")
-        .upload(storagePath, optimized.buffer, {
+        .upload(storagePath, bytes, {
           contentType: optimized.contentType,
           upsert: false,
         });

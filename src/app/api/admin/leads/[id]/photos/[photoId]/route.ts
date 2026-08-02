@@ -157,7 +157,7 @@ export async function PUT(request: Request, { params }: Params) {
 
     const { error: uploadError } = await supabase.storage
       .from("lead-photos")
-      .upload(storagePath, out, {
+      .upload(storagePath, new Uint8Array(out), {
         contentType: "image/jpeg",
         upsert: false,
       });
