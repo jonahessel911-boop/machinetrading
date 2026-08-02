@@ -18,8 +18,9 @@ type SendEmailInput = {
 
 export type SendEmailResult = {
   ok: boolean;
-  mode: "resend" | "demo" | "log";
+  mode: "postmark" | "resend" | "demo" | "log";
   error?: string;
+  messageId?: string;
 };
 
 const CONTRACT_BCC =
@@ -42,17 +43,24 @@ function toBase64(content: Uint8Array | Buffer | string): string {
   return Buffer.from(content).toString("base64");
 }
 
+function emailFromAddress(): string {
+  return (
+    process.env.POSTMARK_FROM?.trim() ||
+    process.env.EMAIL_FROM?.trim() ||
+    `${getCompanyInfo().name} <${getCompanyInfo().email}>`
+  );
+}
+
 /**
- * Stuurt e-mail via Resend als RESEND_API_KEY gezet is.
- * Anders demo/log (toast toont link; handelaar-mail is gesimuleerd).
+ * Stuurt e-mail via Postmark (voorkeur) of Resend.
+ * Zonder keys: demo/log.
  */
 export async function sendEmail(
   input: SendEmailInput,
 ): Promise<SendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from =
-    process.env.EMAIL_FROM ??
-    `${getCompanyInfo().name} <${getCompanyInfo().email}>`;
+  const postmarkToken = process.env.POSTMARK_SERVER_TOKEN?.trim();
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  const from = emailFromAddress();
   const to = asList(input.to);
   const bcc = asList(input.bcc);
 
@@ -60,7 +68,67 @@ export async function sendEmail(
     return { ok: false, mode: "log", error: "Geen ontvanger (to) opgegeven" };
   }
 
-  if (apiKey) {
+  if (postmarkToken) {
+    try {
+      const payload: Record<string, unknown> = {
+        From: from,
+        To: to.join(", "),
+        Subject: input.subject,
+        TextBody: input.text,
+        HtmlBody: input.html ?? `<pre>${input.text}</pre>`,
+        MessageStream:
+          process.env.POSTMARK_MESSAGE_STREAM?.trim() || "outbound",
+      };
+      if (bcc.length) payload.Bcc = bcc.join(", ");
+      if (input.attachments?.length) {
+        payload.Attachments = input.attachments.map((a) => ({
+          Name: a.filename,
+          Content: toBase64(a.content),
+          ContentType: a.contentType || "application/octet-stream",
+        }));
+      }
+
+      const res = await fetch("https://api.postmarkapp.com/email", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Postmark-Server-Token": postmarkToken,
+        },
+        body: JSON.stringify(payload),
+      });
+      const bodyText = await res.text();
+      let bodyJson: { MessageID?: string; Message?: string } = {};
+      try {
+        bodyJson = JSON.parse(bodyText) as {
+          MessageID?: string;
+          Message?: string;
+        };
+      } catch {
+        /* ignore */
+      }
+      if (!res.ok) {
+        return {
+          ok: false,
+          mode: "postmark",
+          error: `Postmark fout (${res.status}): ${(bodyJson.Message || bodyText).slice(0, 200)}`,
+        };
+      }
+      return {
+        ok: true,
+        mode: "postmark",
+        messageId: bodyJson.MessageID,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        mode: "postmark",
+        error: err instanceof Error ? err.message : "E-mail mislukt",
+      };
+    }
+  }
+
+  if (resendKey) {
     try {
       const payload: Record<string, unknown> = {
         from,
@@ -81,7 +149,7 @@ export async function sendEmail(
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${resendKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
