@@ -27,10 +27,14 @@ export function PhotoGallery({
   photos,
   gridClassName = "mp-photo-grid",
   thumbClassName = "mp-photo-thumb",
+  editable = false,
+  onEditPhoto,
 }: {
   photos: Photo[];
   gridClassName?: string;
   thumbClassName?: string;
+  editable?: boolean;
+  onEditPhoto?: (photo: Photo) => void;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [readyIds, setReadyIds] = useState<Record<string, true>>({});
@@ -242,6 +246,19 @@ export function PhotoGallery({
             <div className="mp-lightbox-counter">
               {openIndex + 1} / {photos.length}
             </div>
+            {editable && onEditPhoto && (
+              <button
+                type="button"
+                className="mp-lightbox-edit"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditPhoto(open);
+                  close();
+                }}
+              >
+                Bewerken / gummen
+              </button>
+            )}
           </div>
 
           {photos.length > 1 && (

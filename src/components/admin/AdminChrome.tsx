@@ -59,6 +59,12 @@ export function AdminChrome({
           >
             Rapportage
           </Link>
+          <Link
+            href="/admin/lead-cr"
+            className={isActive("/admin/lead-cr") ? "active" : ""}
+          >
+            Lead CR
+          </Link>
         </nav>
         <div className="crm-header-actions">
           <input

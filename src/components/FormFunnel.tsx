@@ -19,6 +19,8 @@ import {
   readMetaBrowserCookies,
   trackMetaBrowserEvent,
 } from "@/components/MetaPixel";
+import { trackFormStep } from "@/lib/funnel-client";
+import type { FunnelStep } from "@/lib/funnel";
 
 type Step =
   | "brand"
@@ -144,6 +146,11 @@ export function FormFunnel() {
   useEffect(() => {
     setPendingStep(null);
   }, [urlStep]);
+
+  // Lead CR: unieke sessie per formstap
+  useEffect(() => {
+    trackFormStep(step as FunnelStep);
+  }, [step]);
 
   function clearFieldError(key: string) {
     setFieldErrors((prev) => {

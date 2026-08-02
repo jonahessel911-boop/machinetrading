@@ -8,6 +8,7 @@ import type { Lead } from "@/lib/mappers";
 import type { MarketplaceListing } from "@/lib/marketplace";
 import { formatEuro, formatDateTime, labelForStatus } from "@/lib/status";
 import { PhotoGallery } from "@/components/marketplace/PhotoGallery";
+import { ImageEraseEditor } from "./ImageEraseEditor";
 import { ShareToBuyerModal } from "./ShareToBuyerModal";
 
 function statusBadgeClass(status: string) {
@@ -37,6 +38,10 @@ export function LeadDetailClient({
     initialListing,
   );
   const [shareOpen, setShareOpen] = useState(false);
+  const [editPhoto, setEditPhoto] = useState<{
+    id: string;
+    url: string;
+  } | null>(null);
   const [omschrijving, setOmschrijving] = useState(
     initialListing?.omschrijving ?? "",
   );
@@ -232,6 +237,24 @@ export function LeadDetailClient({
         }}
       />
 
+      {editPhoto && (
+        <ImageEraseEditor
+          photoId={editPhoto.id}
+          leadId={lead.id}
+          onClose={() => setEditPhoto(null)}
+          onSaved={(photo) => {
+            // Alleen lokale preview — niet persistent / niet naar server
+            setLead((prev) => ({
+              ...prev,
+              photos: (prev.photos ?? []).map((p) =>
+                p.id === photo.id ? { ...p, url: photo.url } : p,
+              ),
+            }));
+            setMessage("Preview klaar — nog niet live opgeslagen.");
+          }}
+        />
+      )}
+
       <div className="crm-highlight">
         <div className="crm-highlight-main">
           <h1>
@@ -324,11 +347,21 @@ export function LeadDetailClient({
             </div>
             <div className="crm-card-body">
               {lead.photos && lead.photos.length > 0 ? (
-                <PhotoGallery
-                  photos={lead.photos}
-                  gridClassName="crm-photo-grid"
-                  thumbClassName="crm-photo-thumb"
-                />
+                <>
+                  <p className="crm-muted" style={{ marginTop: 0 }}>
+                    Open een foto → &quot;Bewerken / gummen&quot; om iets weg te
+                    gummen.
+                  </p>
+                  <PhotoGallery
+                    photos={lead.photos}
+                    gridClassName="crm-photo-grid"
+                    thumbClassName="crm-photo-thumb"
+                    editable
+                    onEditPhoto={(photo) =>
+                      setEditPhoto({ id: photo.id, url: photo.url })
+                    }
+                  />
+                </>
               ) : (
                 <p className="crm-muted">Nog geen foto&apos;s geüpload.</p>
               )}

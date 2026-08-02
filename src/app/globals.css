@@ -2995,6 +2995,137 @@ textarea.crm-input {
   font-weight: 600;
 }
 
+.mp-lightbox-edit {
+  position: absolute;
+  bottom: -2.15rem;
+  right: 0;
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  color: #181818;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+}
+
+.mp-lightbox-edit:hover {
+  background: #f3f3f3;
+}
+
+/* Admin image erase editor */
+.img-erase-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(8, 20, 40, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.img-erase-panel {
+  width: min(960px, 100%);
+  max-height: min(92vh, 900px);
+  background: #fff;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.img-erase-head {
+  padding: 0.9rem 1.1rem 0.35rem;
+}
+
+.img-erase-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.img-erase-head p {
+  margin: 0.35rem 0 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.img-erase-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 1.1rem;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.img-erase-brush {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.img-erase-brush input {
+  width: 120px;
+}
+
+.img-erase-spacer {
+  flex: 1;
+}
+
+.img-erase-error {
+  margin: 0;
+  padding: 0.55rem 1.1rem;
+  color: #b42318;
+  font-weight: 700;
+  background: #fef3f2;
+}
+
+.img-erase-stage {
+  position: relative;
+  flex: 1;
+  min-height: 240px;
+  overflow: auto;
+  padding: 1rem;
+  display: grid;
+  place-items: center;
+  background: #f4f4f4;
+}
+
+.img-erase-checker {
+  background-image:
+    linear-gradient(45deg, #ddd 25%, transparent 25%),
+    linear-gradient(-45deg, #ddd 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ddd 75%),
+    linear-gradient(-45deg, transparent 75%, #ddd 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  line-height: 0;
+  max-width: 100%;
+}
+
+.img-erase-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.img-erase-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-weight: 700;
+  color: #555;
+  pointer-events: none;
+}
+
 .mp-lightbox-close {
   position: absolute;
   top: 0.75rem;

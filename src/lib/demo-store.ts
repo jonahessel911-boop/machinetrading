@@ -22,6 +22,15 @@ export type DemoStore = {
   shares: MarketplaceShareRow[];
   periodCosts: PeriodCostRow[];
   invoices: InvoiceRow[];
+  funnelEvents: FunnelEventDemoRow[];
+};
+
+export type FunnelEventDemoRow = {
+  id: string;
+  site: string;
+  session_id: string;
+  step: string;
+  created_at: string;
 };
 
 export type PeriodCostRow = {
@@ -39,7 +48,7 @@ const g = globalThis as unknown as {
   __hvDemoStoreVersion?: number;
 };
 
-const DEMO_STORE_VERSION = 7;
+const DEMO_STORE_VERSION = 8;
 
 function emptyStore(): DemoStore {
   return {
@@ -52,6 +61,7 @@ function emptyStore(): DemoStore {
     shares: [],
     periodCosts: [],
     invoices: [],
+    funnelEvents: [],
   };
 }
 
@@ -66,6 +76,7 @@ export function getDemoStore(): DemoStore {
     !Array.isArray(g.__hvDemoStore.periodCosts) ||
     !Array.isArray(g.__hvDemoStore.bids) ||
     !Array.isArray(g.__hvDemoStore.invoices) ||
+    !Array.isArray(g.__hvDemoStore.funnelEvents) ||
     g.__hvDemoStoreVersion !== DEMO_STORE_VERSION
   ) {
     g.__hvDemoStore = emptyStore();
