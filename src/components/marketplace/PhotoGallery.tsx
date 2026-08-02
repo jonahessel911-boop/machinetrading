@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useCallback, useState, useMemo } from "react";
 
 type Photo = {
@@ -8,10 +7,6 @@ type Photo = {
   url: string;
   originalName?: string;
 };
-
-function isRemoteHttp(url: string) {
-  return /^https?:\/\//i.test(url);
-}
 
 function preload(src: string): Promise<void> {
   return new Promise((resolve) => {
@@ -45,7 +40,7 @@ export function PhotoGallery({
     setReadyIds((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
   }, []);
 
-  // Prefetch originele foto's (direct Supabase — geen /_next/image bottleneck)
+  // Prefetch originele foto's (direct Supabase — geen /_next/image)
   useEffect(() => {
     if (photos.length === 0) return;
     let cancelled = false;
@@ -166,27 +161,15 @@ export function PhotoGallery({
             }}
             aria-label={`Foto ${index + 1} vergroten`}
           >
-            {isRemoteHttp(p.url) ? (
-              <Image
-                src={p.url}
-                alt={p.originalName ?? `Foto ${index + 1}`}
-                width={256}
-                height={256}
-                sizes="120px"
-                quality={75}
-                loading={index < 8 ? "eager" : "lazy"}
-                className="photo-thumb-img"
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={p.url}
-                alt={p.originalName ?? `Foto ${index + 1}`}
-                loading={index < 8 ? "eager" : "lazy"}
-                decoding="async"
-                className="photo-thumb-img"
-              />
-            )}
+            {/* Directe URL — next/image brak thumbs (zelfde issue als lightbox) */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={p.url}
+              alt={p.originalName ?? `Foto ${index + 1}`}
+              loading={index < 8 ? "eager" : "lazy"}
+              decoding="async"
+              className="photo-thumb-img"
+            />
           </button>
         ))}
       </div>
@@ -226,7 +209,6 @@ export function PhotoGallery({
             className="mp-lightbox-stage"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Directe Supabase-URL — geen /_next/image (die brak door quality-config) */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               key={open.id}
