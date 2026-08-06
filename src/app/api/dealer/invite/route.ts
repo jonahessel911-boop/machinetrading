@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { crmGetBuyerRow } from "@/lib/crm";
 import { verifyDealerInviteToken } from "@/lib/dealer-auth";
+import { mpListPublic } from "@/lib/marketplace-data";
+import { mapBuyer } from "@/lib/mappers";
 
-/** Decode invite token for autofill on login page (e-mail + wachtwoord). */
+/** Invite-info voor onboarding (geen wachtwoord meer in de response). */
 export async function GET(request: Request) {
   const token = new URL(request.url).searchParams.get("token")?.trim() || "";
   if (!token) {
@@ -16,8 +19,21 @@ export async function GET(request: Request) {
     );
   }
 
+  const row = await crmGetBuyerRow(payload.buyerId);
+  if (!row) {
+    return NextResponse.json({ error: "Account niet gevonden" }, { status: 404 });
+  }
+
+  const buyer = mapBuyer(row);
+  const listings = await mpListPublic().catch(() => []);
+
   return NextResponse.json({
-    email: payload.email,
-    password: payload.password,
+    email: payload.email || buyer.dealerUsername || buyer.email,
+    bedrijf: buyer.bedrijf,
+    naam: buyer.naam,
+    buyerId: buyer.id,
+    activated: Boolean(buyer.dealerActivatedAt),
+    hasPassword: buyer.hasDealerPassword,
+    dealCount: listings.length,
   });
 }

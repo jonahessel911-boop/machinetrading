@@ -32,8 +32,7 @@ const emptyForm = {
   bedrijf: "",
   email: "",
   telefoon: "",
-  dealerPassword: "",
-  dealerEnabled: false,
+  sendInvite: false,
   invoiceKvk: "",
   invoiceStraat: "",
   invoiceHuisnummer: "",
@@ -106,8 +105,8 @@ export function KopersClient({
     setMessage("");
     const email = form.email.trim();
 
-    if (form.dealerPassword && !email) {
-      setMessage("E-mail is verplicht als je een wachtwoord instelt.");
+    if (form.sendInvite && !email) {
+      setMessage("E-mail is verplicht om een uitnodiging te sturen.");
       return;
     }
 
@@ -121,9 +120,7 @@ export function KopersClient({
           bedrijf: form.bedrijf,
           email: email || null,
           telefoon: form.telefoon || null,
-          dealerUsername: form.dealerPassword && email ? email : null,
-          dealerPassword: form.dealerPassword || null,
-          dealerEnabled: form.dealerEnabled,
+          sendInvite: form.sendInvite,
           invoice: {
             invoiceBedrijf: form.bedrijf,
             invoiceContact: form.naam,
@@ -142,7 +139,9 @@ export function KopersClient({
       if (!res.ok) throw new Error(data.error || "Mislukt");
       closeModal();
       if (data.inviteSent) {
-        setMessage("Handelaar aangemaakt — inlogmail verstuurd.");
+        setMessage(
+          "Handelaar aangemaakt — onboarding-mail verstuurd. Zij kiezen zelf een wachtwoord.",
+        );
       } else if (data.inviteError) {
         setMessage(
           `Handelaar aangemaakt, maar mail mislukt: ${data.inviteError}`,
@@ -351,43 +350,24 @@ export function KopersClient({
                 )}
 
                 <hr className="crm-form-hr" />
-                <p className="crm-muted" style={{ margin: 0 }}>
-                  Marketplace-login (optioneel) — leeg laten = alleen
-                  registratie, geen account
-                </p>
-                <label>
-                  Wachtwoord
+                <label className="crm-check">
                   <input
-                    className="crm-input"
-                    type="password"
-                    value={form.dealerPassword}
+                    type="checkbox"
+                    checked={form.sendInvite}
                     onChange={(e) =>
                       setForm((f) => ({
                         ...f,
-                        dealerPassword: e.target.value,
-                        dealerEnabled: e.target.value
-                          ? true
-                          : f.dealerEnabled,
+                        sendInvite: e.target.checked,
                       }))
                     }
-                    autoComplete="new-password"
-                    placeholder="Leeg = geen login"
                   />
+                  Marketplace-uitnodiging mailen (onboarding + zelf wachtwoord
+                  kiezen)
                 </label>
-                {form.dealerPassword ? (
-                  <label className="crm-check">
-                    <input
-                      type="checkbox"
-                      checked={form.dealerEnabled}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          dealerEnabled: e.target.checked,
-                        }))
-                      }
-                    />
-                    Dealer-login actief + uitnodiging mailen
-                  </label>
+                {form.sendInvite && !form.email.trim() ? (
+                  <p className="crm-muted" style={{ margin: 0 }}>
+                    Vul hierboven een e-mailadres in.
+                  </p>
                 ) : null}
 
                 {message && <p className="crm-form-error">{message}</p>}
@@ -399,8 +379,8 @@ export function KopersClient({
                 >
                   {busy
                     ? "Bezig…"
-                    : form.dealerPassword
-                      ? "Handelaar + login aanmaken"
+                    : form.sendInvite
+                      ? "Handelaar + uitnodiging"
                       : "Registreren zonder login"}
                 </button>
               </form>

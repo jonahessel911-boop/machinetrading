@@ -766,20 +766,28 @@ export function adminUserInviteEmail(opts: {
 export function dealerInviteEmail(opts: {
   bedrijf: string;
   email: string;
-  password: string;
   loginUrl: string;
+  dealCount?: number;
 }): { subject: string; text: string; html: string } {
   const company = getCompanyInfo();
-  const subject = "Heftruckverkocht.nl inloggegevens";
+  const deals =
+    opts.dealCount != null && opts.dealCount > 0
+      ? opts.dealCount
+      : null;
+  const subject = `Welkom bij ${company.name} — bekijk beschikbare heftrucks`;
   const text = [
     `Beste ${opts.bedrijf},`,
     "",
-    "Welkom bij de marketplace van heftruckverkocht.nl. Hieronder vind je je inloggegevens:",
+    `Welkom bij de marketplace van ${company.name}.`,
+    deals
+      ? `Er staan nu ${deals} heftruck${deals === 1 ? "" : "s"} klaar om te bekijken.`
+      : "Activeer je account om heftrucks te bekijken en te bieden.",
     "",
-    `E-mail: ${opts.email}`,
-    `Wachtwoord: ${opts.password}`,
+    `Je account e-mail: ${opts.email}`,
     "",
-    `Inloggen: ${opts.loginUrl}`,
+    "Klik op de link hieronder om te starten. Je kiest zelf een wachtwoord.",
+    "",
+    opts.loginUrl,
     "",
     emailSignOffText(company),
   ].join("\n");
@@ -787,12 +795,15 @@ export function dealerInviteEmail(opts: {
   const html = `
     <div style="font-family:Segoe UI,sans-serif;color:#181818;line-height:1.5">
       <p>Beste ${escapeHtml(opts.bedrijf)},</p>
-      <p>Welkom bij de marketplace van <strong>heftruckverkocht.nl</strong>. Hieronder vind je je inloggegevens:</p>
-      <p>
-        <strong>E-mail:</strong> ${escapeHtml(opts.email)}<br/>
-        <strong>Wachtwoord:</strong> ${escapeHtml(opts.password)}
-      </p>
-      <p><a href="${escapeHtml(opts.loginUrl)}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Inloggen</a></p>
+      <p>Welkom bij de marketplace van <strong>${escapeHtml(company.name)}</strong>.</p>
+      ${
+        deals
+          ? `<p>Er staan nu <strong>${deals} heftruck${deals === 1 ? "" : "s"}</strong> klaar om te bekijken.</p>`
+          : `<p>Activeer je account om heftrucks te bekijken en te bieden.</p>`
+      }
+      <p><strong>Je account e-mail:</strong> ${escapeHtml(opts.email)}</p>
+      <p>Klik op de knop hieronder om te starten. Je kiest zelf een wachtwoord.</p>
+      <p><a href="${escapeHtml(opts.loginUrl)}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Account activeren</a></p>
       ${emailSignOffHtml(company)}
     </div>
   `;

@@ -27,6 +27,16 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
+      // Oude invite-links met wachtwoord in token: auto-login
+      if (!payload.password) {
+        return NextResponse.json(
+          {
+            error: "Gebruik de onboarding-link om je wachtwoord in te stellen",
+            redirect: `/dealer/onboarding?invite=${encodeURIComponent(invite)}`,
+          },
+          { status: 400 },
+        );
+      }
       user = payload.email;
       pass = payload.password;
     }

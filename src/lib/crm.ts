@@ -447,6 +447,8 @@ export async function crmCreateBuyer(input: {
   dealerUsername?: string | null;
   dealerPassword?: string | null;
   dealerEnabled?: boolean;
+  /** Username zonder wachtwoord — dealer kiest wachtwoord in onboarding */
+  pendingInvite?: boolean;
   invoice?: {
     invoiceBedrijf?: string | null;
     invoiceContact?: string | null;
@@ -469,7 +471,11 @@ export async function crmCreateBuyer(input: {
     username && input.dealerPassword
       ? hashPassword(input.dealerPassword)
       : null;
-  const enabled = Boolean(username && passwordHash && input.dealerEnabled !== false);
+  const enabled = Boolean(
+    username &&
+      (passwordHash || input.pendingInvite) &&
+      input.dealerEnabled !== false,
+  );
   const inv = input.invoice;
 
   const invoiceCols = {

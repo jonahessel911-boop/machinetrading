@@ -2174,6 +2174,240 @@ img {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
 }
 
+/* Dealer onboarding overlay */
+.dealer-onboard {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+.dealer-onboard-bg {
+  position: absolute;
+  inset: -2rem;
+  z-index: 0;
+  pointer-events: none;
+  filter: blur(10px) saturate(0.85);
+  transform: scale(1.06);
+}
+
+.dealer-onboard-bg-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+@media (max-width: 720px) {
+  .dealer-onboard-bg-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dealer-onboard-bg-card {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.dealer-onboard-bg-thumb {
+  aspect-ratio: 4 / 3;
+  background: #e5e7eb;
+}
+
+.dealer-onboard-bg-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.dealer-onboard-bg-ph {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #d1d5db, #9ca3af);
+}
+
+.dealer-onboard-bg-meta {
+  padding: 0.65rem 0.75rem 0.8rem;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.dealer-onboard-bg-meta strong {
+  font-size: 0.85rem;
+  color: #181818;
+}
+
+.dealer-onboard-bg-meta span {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.dealer-onboard-bg-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.72)),
+    linear-gradient(180deg, rgba(255, 122, 0, 0.12), transparent 45%);
+}
+
+.dealer-onboard-panel {
+  position: relative;
+  z-index: 1;
+  width: min(440px, 100%);
+  padding: 1.6rem 1.45rem 1.5rem;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.dealer-onboard-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--orange-deep);
+}
+
+.dealer-onboard-title {
+  margin: 0 0 1rem;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #181818;
+  line-height: 1.2;
+}
+
+.dealer-onboard-progress {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.dealer-onboard-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.dealer-onboard-dot.is-active {
+  background: var(--orange);
+  width: 1.35rem;
+}
+
+.dealer-onboard-dot.is-done {
+  background: #fdba74;
+}
+
+.dealer-onboard-step-title {
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #181818;
+}
+
+.dealer-onboard-copy {
+  margin: 0 0 1rem;
+  color: #4b5563;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.dealer-onboard-copy p {
+  margin: 0 0 0.75rem;
+}
+
+.dealer-onboard-copy p:last-child {
+  margin-bottom: 0;
+}
+
+.dealer-onboard-example {
+  margin: 0.85rem 0 0;
+  padding: 0.85rem 0.95rem;
+  background: #fff8f1;
+  border: 1px solid #ffe0c2;
+  border-radius: 10px;
+}
+
+.dealer-onboard-example p {
+  margin: 0 0 0.4rem;
+}
+
+.dealer-onboard-example ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #374151;
+}
+
+.dealer-onboard-example li {
+  margin: 0.2rem 0;
+}
+
+.dealer-onboard-phone {
+  margin: -0.25rem 0 1rem;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.dealer-onboard-phone a {
+  color: var(--orange-deep);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.dealer-onboard-cta {
+  width: 100%;
+  justify-content: center;
+  min-height: 2.75rem;
+  font-size: 1rem;
+}
+
+.dealer-onboard-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dealer-onboard-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #514f4d;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dealer-onboard-email {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  color: #374151;
+}
+
+.dealer-onboard-error {
+  margin: 0;
+  color: #ba0517;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.dealer-onboard-back {
+  width: 100%;
+  justify-content: center;
+}
+
 .crm-two {
   display: grid;
   gap: 0.85rem;

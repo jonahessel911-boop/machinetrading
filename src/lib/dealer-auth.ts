@@ -67,14 +67,15 @@ export async function getDealerSession(): Promise<DealerSession | null> {
 
 export async function createDealerInviteToken(opts: {
   email: string;
-  password: string;
   buyerId: string;
+  /** @deprecated optioneel voor oude links */
+  password?: string;
 }): Promise<string> {
   return new SignJWT({
     role: "dealer_invite",
     email: opts.email.trim().toLowerCase(),
-    password: opts.password,
     buyerId: opts.buyerId,
+    ...(opts.password ? { password: opts.password } : {}),
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -84,21 +85,24 @@ export async function createDealerInviteToken(opts: {
 
 export async function verifyDealerInviteToken(
   token: string,
-): Promise<{ email: string; password: string; buyerId: string } | null> {
+): Promise<{
+  email: string;
+  buyerId: string;
+  password: string | null;
+} | null> {
   try {
     const { payload } = await jwtVerify(token, getSecret());
     if (
       payload.role !== "dealer_invite" ||
       !payload.email ||
-      !payload.password ||
       !payload.buyerId
     ) {
       return null;
     }
     return {
       email: String(payload.email).toLowerCase(),
-      password: String(payload.password),
       buyerId: String(payload.buyerId),
+      password: payload.password ? String(payload.password) : null,
     };
   } catch {
     return null;
@@ -114,7 +118,7 @@ export function dealerSiteUrl(): string {
 }
 
 export function dealerInviteLoginUrl(token: string): string {
-  return `${dealerSiteUrl()}/dealer/login?invite=${encodeURIComponent(token)}`;
+  return `${dealerSiteUrl()}/dealer/onboarding?invite=${encodeURIComponent(token)}`;
 }
 
 export async function requireDealer(): Promise<DealerSession> {

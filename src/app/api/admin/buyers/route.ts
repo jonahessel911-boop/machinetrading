@@ -6,6 +6,7 @@ import {
   dealerInviteLoginUrl,
 } from "@/lib/dealer-auth";
 import { dealerInviteEmail, sendEmail } from "@/lib/email";
+import { mpListPublic } from "@/lib/marketplace-data";
 
 export async function GET() {
   if (!(await isAuthenticated())) {
@@ -36,29 +37,46 @@ export async function POST(request: Request) {
     );
   }
 
-  if (body.dealerUsername && !body.dealerPassword) {
+  const email = body.email ? String(body.email).trim() : "";
+  const sendInvite = Boolean(body.sendInvite);
+  const dealerPassword = body.dealerPassword
+    ? String(body.dealerPassword)
+    : null;
+
+  if (sendInvite && !email.includes("@")) {
     return NextResponse.json(
-      { error: "Wachtwoord verplicht bij dealer-login" },
+      { error: "E-mail is verplicht om een uitnodiging te sturen" },
+      { status: 400 },
+    );
+  }
+
+  if (body.dealerUsername && !dealerPassword && !sendInvite) {
+    return NextResponse.json(
+      { error: "Wachtwoord verplicht bij dealer-login zonder uitnodiging" },
       { status: 400 },
     );
   }
 
   try {
-    const dealerPassword = body.dealerPassword
-      ? String(body.dealerPassword)
-      : null;
-    const dealerUsername = body.dealerUsername
-      ? String(body.dealerUsername).trim()
-      : null;
+    const dealerUsername = sendInvite
+      ? email
+      : body.dealerUsername
+        ? String(body.dealerUsername).trim()
+        : dealerPassword && email
+          ? email
+          : null;
 
     const buyer = await crmCreateBuyer({
       naam: String(body.naam).trim(),
       bedrijf: String(body.bedrijf).trim(),
-      email: body.email ? String(body.email).trim() : null,
+      email: email || null,
       telefoon: body.telefoon ? String(body.telefoon).trim() : null,
       dealerUsername,
-      dealerPassword,
-      dealerEnabled: body.dealerEnabled !== false,
+      dealerPassword: sendInvite ? null : dealerPassword,
+      dealerEnabled: sendInvite
+        ? true
+        : body.dealerEnabled !== false && Boolean(dealerUsername),
+      pendingInvite: sendInvite,
       invoice: body.invoice
         ? {
             invoiceBedrijf: body.invoice.invoiceBedrijf,
@@ -79,38 +97,36 @@ export async function POST(request: Request) {
     });
 
     let inviteSent = false;
-    if (dealerUsername && dealerPassword && buyer.dealerEnabled) {
+    if (sendInvite && dealerUsername) {
       const to = (buyer.email || dealerUsername).trim();
-      if (to.includes("@")) {
-        const token = await createDealerInviteToken({
-          email: dealerUsername,
-          password: dealerPassword,
-          buyerId: buyer.id,
-        });
-        const mail = dealerInviteEmail({
-          bedrijf: buyer.bedrijf,
-          email: dealerUsername,
-          password: dealerPassword,
-          loginUrl: dealerInviteLoginUrl(token),
-        });
-        const sent = await sendEmail({
-          to,
-          subject: mail.subject,
-          text: mail.text,
-          html: mail.html,
-        });
-        if (!sent.ok) {
-          return NextResponse.json(
-            {
-              ...buyer,
-              inviteSent: false,
-              inviteError: sent.error || "Uitnodigingsmail mislukt",
-            },
-            { status: 201 },
-          );
-        }
-        inviteSent = true;
+      const listings = await mpListPublic().catch(() => []);
+      const token = await createDealerInviteToken({
+        email: dealerUsername,
+        buyerId: buyer.id,
+      });
+      const mail = dealerInviteEmail({
+        bedrijf: buyer.bedrijf,
+        email: dealerUsername,
+        loginUrl: dealerInviteLoginUrl(token),
+        dealCount: listings.length,
+      });
+      const sent = await sendEmail({
+        to,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      });
+      if (!sent.ok) {
+        return NextResponse.json(
+          {
+            ...buyer,
+            inviteSent: false,
+            inviteError: sent.error || "Uitnodigingsmail mislukt",
+          },
+          { status: 201 },
+        );
       }
+      inviteSent = true;
     }
 
     return NextResponse.json({ ...buyer, inviteSent });
