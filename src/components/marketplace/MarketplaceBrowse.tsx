@@ -11,11 +11,15 @@ type SortKey =
   | "price_asc";
 
 const SORTS: { key: SortKey; label: string; guestHidden?: boolean }[] = [
-  { key: "time_desc", label: "Tijd aflopend" },
-  { key: "time_asc", label: "Tijd oplopend" },
+  { key: "time_desc", label: "Nieuwste eerst" },
+  { key: "time_asc", label: "Oudste eerst" },
   { key: "price_desc", label: "Prijs aflopend", guestHidden: true },
   { key: "price_asc", label: "Prijs oplopend", guestHidden: true },
 ];
+
+function listingTime(l: MarketplaceListing): number {
+  return new Date(l.startsAt || l.createdAt).getTime();
+}
 
 function sortListings(
   listings: MarketplaceListing[],
@@ -24,10 +28,10 @@ function sortListings(
   const rows = [...listings];
   rows.sort((a, b) => {
     if (sort === "time_desc") {
-      return new Date(b.endsAt).getTime() - new Date(a.endsAt).getTime();
+      return listingTime(b) - listingTime(a);
     }
     if (sort === "time_asc") {
-      return new Date(a.endsAt).getTime() - new Date(b.endsAt).getTime();
+      return listingTime(a) - listingTime(b);
     }
     const pa = a.highestBid ?? -1;
     const pb = b.highestBid ?? -1;
@@ -44,11 +48,11 @@ export function MarketplaceBrowse({
   listings: MarketplaceListing[];
   isGuest?: boolean;
 }) {
-  const [sort, setSort] = useState<SortKey>("time_asc");
+  const [sort, setSort] = useState<SortKey>("time_desc");
   const visibleSorts = SORTS.filter((s) => !isGuest || !s.guestHidden);
   const effectiveSort =
     isGuest && (sort === "price_desc" || sort === "price_asc")
-      ? "time_asc"
+      ? "time_desc"
       : sort;
   const sorted = useMemo(
     () => sortListings(listings, effectiveSort),

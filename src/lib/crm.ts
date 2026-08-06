@@ -82,7 +82,10 @@ function hydrateLead(store: DemoStore, lead: LeadRow): LeadFull {
 
 export type LeadListFilters = {
   status?: string | null;
+  /** true = inclusief status geen_contact (standaard) */
   archive?: boolean;
+  /** true = verberg status geen_contact */
+  activeOnly?: boolean;
   q?: string | null;
   /** @deprecated gebruik page + pageSize; blijft werken als pageSize op page 1 */
   limit?: number;
@@ -111,7 +114,8 @@ function applyLeadFilters(
   if (filters.status) {
     return query.eq("status", filters.status);
   }
-  if (!filters.archive) {
+  // Standaard alle leads; alleen verbergen bij activeOnly
+  if (filters.activeOnly && !filters.archive) {
     return query.neq("status", "geen_contact");
   }
   return query;
@@ -181,7 +185,7 @@ export async function crmListLeads(
           ? ["koper_zoeken", "in_bemiddeling"]
           : [filters.status];
       rows = rows.filter((l) => matchStatuses.includes(l.status));
-    } else if (!filters.archive) {
+    } else if (filters.activeOnly && !filters.archive) {
       rows = rows.filter((l) => l.status !== "geen_contact");
     }
     if (filters.q) {

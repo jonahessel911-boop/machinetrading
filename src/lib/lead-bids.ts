@@ -54,18 +54,6 @@ function bidderLabel(row: Pick<LeadBidRow, "bidder_bedrijf" | "bidder_naam">) {
   return (row.bidder_bedrijf || row.bidder_naam || "").trim() || "Handelaar";
 }
 
-function pickHighest(rows: LeadBidRow[]): LeadHighestBid | null {
-  if (rows.length === 0) return null;
-  const top = rows.reduce((a, b) => (b.bedrag > a.bedrag ? b : a));
-  return {
-    leadId: top.lead_id,
-    bedrag: top.bedrag,
-    bidderLabel: bidderLabel(top),
-    bidderEmail: top.bidder_email,
-    createdAt: top.created_at,
-  };
-}
-
 export async function crmPlaceLeadBid(input: {
   leadId: string;
   selectionId?: string | null;
@@ -127,7 +115,7 @@ export async function crmPlaceLeadBid(input: {
   return mapBid(data as LeadBidRow);
 }
 
-/** Hoogste bod per lead_id (uit lead_bids). */
+/** Hoogste bod per lead_id (lead_bids + marketplace_bids). */
 export async function crmHighestBidsByLeadIds(
   leadIds: string[],
 ): Promise<Map<string, LeadHighestBid>> {
@@ -135,52 +123,150 @@ export async function crmHighestBidsByLeadIds(
   const map = new Map<string, LeadHighestBid>();
   if (ids.length === 0) return map;
 
+  function consider(row: {
+    lead_id: string;
+    bedrag: number;
+    bidder_bedrijf: string | null;
+    bidder_naam: string;
+    bidder_email: string;
+    created_at: string;
+  }) {
+    const bedrag = Number(row.bedrag);
+    if (!Number.isFinite(bedrag)) return;
+    const current = map.get(row.lead_id);
+    if (current && current.bedrag >= bedrag) return;
+    map.set(row.lead_id, {
+      leadId: row.lead_id,
+      bedrag,
+      bidderLabel: bidderLabel(row),
+      bidderEmail: row.bidder_email || "",
+      createdAt: row.created_at,
+    });
+  }
+
   if (isDemoMode()) {
-    const rows = getDemoStore().leadBids.filter((b) => ids.includes(b.lead_id));
-    for (const id of ids) {
-      const highest = pickHighest(rows.filter((r) => r.lead_id === id));
-      if (highest) map.set(id, highest);
+    const store = getDemoStore();
+    for (const b of store.leadBids) {
+      if (!ids.includes(b.lead_id)) continue;
+      consider(b);
+    }
+    for (const listing of store.listings) {
+      if (!listing.lead_id || !ids.includes(listing.lead_id)) continue;
+      for (const b of store.bids) {
+        if (b.listing_id !== listing.id) continue;
+        consider({
+          lead_id: listing.lead_id,
+          bedrag: b.bedrag,
+          bidder_bedrijf: b.bidder_bedrijf,
+          bidder_naam: b.bidder_naam,
+          bidder_email: b.bidder_email,
+          created_at: b.created_at,
+        });
+      }
     }
     return map;
   }
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+
+  const { data: leadBidRows, error: leadBidErr } = await supabase
     .from("lead_bids")
     .select("*")
-    .in("lead_id", ids)
-    .order("bedrag", { ascending: false });
+    .in("lead_id", ids);
 
-  if (error) {
-    // Tabel nog niet gemigreerd → geen biedingen tonen i.p.v. hele leads-lijst breken
-    if (/lead_bids|schema cache|does not exist/i.test(error.message)) {
-      return map;
+  if (leadBidErr) {
+    if (!/lead_bids|schema cache|does not exist/i.test(leadBidErr.message)) {
+      throw new Error(leadBidErr.message);
     }
-    throw new Error(error.message);
+  } else {
+    for (const row of (leadBidRows ?? []) as LeadBidRow[]) {
+      consider(row);
+    }
   }
 
-  const byLead = new Map<string, LeadBidRow[]>();
-  for (const row of (data ?? []) as LeadBidRow[]) {
-    const list = byLead.get(row.lead_id) ?? [];
-    list.push(row);
-    byLead.set(row.lead_id, list);
+  const { data: listings, error: listErr } = await supabase
+    .from("marketplace_listings")
+    .select("id, lead_id")
+    .in("lead_id", ids);
+
+  if (listErr) {
+    if (!/marketplace_listings|schema cache|does not exist/i.test(listErr.message)) {
+      throw new Error(listErr.message);
+    }
+    return map;
   }
-  for (const [id, rows] of byLead) {
-    const highest = pickHighest(rows);
-    if (highest) map.set(id, highest);
+
+  const listingIds = (listings ?? [])
+    .map((l) => String(l.id))
+    .filter(Boolean);
+  if (listingIds.length === 0) return map;
+
+  const leadByListing = new Map<string, string>();
+  for (const l of listings ?? []) {
+    if (l.id && l.lead_id) leadByListing.set(String(l.id), String(l.lead_id));
   }
+
+  const { data: mpBids, error: mpErr } = await supabase
+    .from("marketplace_bids")
+    .select("*")
+    .in("listing_id", listingIds);
+
+  if (mpErr) {
+    if (!/marketplace_bids|schema cache|does not exist/i.test(mpErr.message)) {
+      throw new Error(mpErr.message);
+    }
+    return map;
+  }
+
+  for (const b of mpBids ?? []) {
+    const leadId = leadByListing.get(String(b.listing_id));
+    if (!leadId) continue;
+    consider({
+      lead_id: leadId,
+      bedrag: Number(b.bedrag),
+      bidder_bedrijf: b.bidder_bedrijf == null ? null : String(b.bidder_bedrijf),
+      bidder_naam: String(b.bidder_naam ?? ""),
+      bidder_email: String(b.bidder_email ?? ""),
+      created_at: String(b.created_at ?? ""),
+    });
+  }
+
   return map;
 }
 
 export async function crmListLeadBids(leadId: string): Promise<LeadBid[]> {
   if (isDemoMode()) {
-    return getDemoStore()
-      .leadBids.filter((b) => b.lead_id === leadId)
-      .sort((a, b) => b.bedrag - a.bedrag || b.created_at.localeCompare(a.created_at))
+    const store = getDemoStore();
+    const fromLead = store.leadBids
+      .filter((b) => b.lead_id === leadId)
       .map(mapBid);
+    const listingIds = store.listings
+      .filter((l) => l.lead_id === leadId)
+      .map((l) => l.id);
+    const fromMp = store.bids
+      .filter((b) => listingIds.includes(b.listing_id))
+      .map((b) =>
+        mapBid({
+          id: b.id,
+          lead_id: leadId,
+          selection_id: null,
+          buyer_id: null,
+          bidder_naam: b.bidder_naam,
+          bidder_email: b.bidder_email,
+          bidder_telefoon: b.bidder_telefoon,
+          bidder_bedrijf: b.bidder_bedrijf,
+          bedrag: b.bedrag,
+          created_at: b.created_at,
+        }),
+      );
+    return [...fromLead, ...fromMp].sort(
+      (a, b) => b.bedrag - a.bedrag || b.createdAt.localeCompare(a.createdAt),
+    );
   }
 
   const supabase = getSupabaseAdmin();
+  const bids: LeadBid[] = [];
+
   const { data, error } = await supabase
     .from("lead_bids")
     .select("*")
@@ -189,12 +275,55 @@ export async function crmListLeadBids(leadId: string): Promise<LeadBid[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    if (/lead_bids|schema cache|does not exist/i.test(error.message)) {
-      return [];
+    if (!/lead_bids|schema cache|does not exist/i.test(error.message)) {
+      throw new Error(error.message);
     }
-    throw new Error(error.message);
+  } else {
+    bids.push(...((data ?? []) as LeadBidRow[]).map(mapBid));
   }
-  return ((data ?? []) as LeadBidRow[]).map(mapBid);
+
+  const { data: listings } = await supabase
+    .from("marketplace_listings")
+    .select("id")
+    .eq("lead_id", leadId);
+
+  const listingIds = (listings ?? []).map((l) => String(l.id)).filter(Boolean);
+  if (listingIds.length > 0) {
+    const { data: mpBids, error: mpErr } = await supabase
+      .from("marketplace_bids")
+      .select("*")
+      .in("listing_id", listingIds)
+      .order("bedrag", { ascending: false });
+
+    if (mpErr) {
+      if (!/marketplace_bids|schema cache|does not exist/i.test(mpErr.message)) {
+        throw new Error(mpErr.message);
+      }
+    } else {
+      for (const b of mpBids ?? []) {
+        bids.push(
+          mapBid({
+            id: String(b.id),
+            lead_id: leadId,
+            selection_id: null,
+            buyer_id: null,
+            bidder_naam: String(b.bidder_naam ?? ""),
+            bidder_email: String(b.bidder_email ?? ""),
+            bidder_telefoon:
+              b.bidder_telefoon == null ? null : String(b.bidder_telefoon),
+            bidder_bedrijf:
+              b.bidder_bedrijf == null ? null : String(b.bidder_bedrijf),
+            bedrag: Number(b.bedrag),
+            created_at: String(b.created_at ?? ""),
+          }),
+        );
+      }
+    }
+  }
+
+  return bids.sort(
+    (a, b) => b.bedrag - a.bedrag || b.createdAt.localeCompare(a.createdAt),
+  );
 }
 
 export type BuyerBid = LeadBid & {

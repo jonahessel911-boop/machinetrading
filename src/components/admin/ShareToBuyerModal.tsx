@@ -13,11 +13,14 @@ type BuyerHit = {
 
 export function ShareToBuyerModal({
   leadId,
+  omschrijving = "",
   open,
   onClose,
   onDone,
 }: {
   leadId: string;
+  /** Actuele marketplace-omschrijving uit het lead-formulier */
+  omschrijving?: string;
   open: boolean;
   onClose: () => void;
   onDone: (message: string) => void;
@@ -87,6 +90,7 @@ export function ShareToBuyerModal({
           leadId,
           email: opts.email,
           greetingName: opts.greetingName,
+          omschrijving,
         }),
       });
       const data = await res.json();
@@ -111,9 +115,35 @@ export function ShareToBuyerModal({
         </div>
         <div className="crm-modal-body">
           <p className="crm-muted" style={{ marginTop: 0 }}>
-            Ontvanger krijgt een privé-link met foto&apos;s en omschrijving —
-            geen login, geen veiling.
+            Ontvanger krijgt een privé-link met foto&apos;s
+            {omschrijving.trim() ? " en jouw omschrijving" : " en omschrijving"}{" "}
+            — geen login, geen veiling.
           </p>
+          {omschrijving.trim() ? (
+            <div
+              className="crm-muted"
+              style={{
+                marginBottom: "0.85rem",
+                padding: "0.65rem 0.75rem",
+                background: "#f8fafc",
+                border: "1px solid #e5e7eb",
+                borderRadius: 8,
+                whiteSpace: "pre-wrap",
+                color: "#374151",
+                fontSize: "0.92rem",
+              }}
+            >
+              <strong style={{ display: "block", marginBottom: 4 }}>
+                Omschrijving op de preview:
+              </strong>
+              {omschrijving.trim()}
+            </div>
+          ) : (
+            <p className="crm-muted" style={{ marginTop: 0 }}>
+              Tip: vul eerst de omschrijving in bij Marketplace — die komt dan
+              op de deelpagina te staan.
+            </p>
+          )}
 
           <div className="crm-actions" style={{ marginTop: 0 }}>
             <button

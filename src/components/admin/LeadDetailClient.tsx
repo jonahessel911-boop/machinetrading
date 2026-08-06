@@ -335,10 +335,15 @@ export function LeadDetailClient({
 
       <ShareToBuyerModal
         leadId={lead.id}
+        omschrijving={omschrijving}
         open={shareOpen}
         onClose={() => setShareOpen(false)}
         onDone={(msg) => {
           setMessage(msg);
+          setLead((prev) => ({
+            ...prev,
+            omschrijving: omschrijving.trim() || null,
+          }));
           router.refresh();
           fetch(`/api/admin/marketplace?leadId=${lead.id}`)
             .then((r) => (r.ok ? r.json() : null))

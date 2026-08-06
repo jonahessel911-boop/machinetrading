@@ -8,13 +8,13 @@ import { crmListLeads, isDemoMode } from "@/lib/crm";
 
 function buildLeadsHref(opts: {
   status?: string;
-  archive?: boolean;
+  activeOnly?: boolean;
   q?: string;
   page?: number;
 }) {
   const sp = new URLSearchParams();
   if (opts.status) sp.set("status", opts.status);
-  if (opts.archive) sp.set("archive", "1");
+  if (opts.activeOnly) sp.set("active", "1");
   if (opts.q) sp.set("q", opts.q);
   if (opts.page && opts.page > 1) sp.set("page", String(opts.page));
   const qs = sp.toString();
@@ -27,6 +27,7 @@ export default async function AdminLeadsPage({
   searchParams: Promise<{
     status?: string;
     archive?: string;
+    active?: string;
     q?: string;
     page?: string;
   }>;
@@ -35,14 +36,24 @@ export default async function AdminLeadsPage({
 
   const params = await searchParams;
   const status = params.status;
-  const archive = params.archive === "1";
   const q = params.q?.trim();
   const page = Math.max(1, Number(params.page) || 1);
   const pageSize = 50;
 
+  // Default = alle leads. ?active=1 verbergt status geen_contact.
+  // Legacy ?archive=1 blijft alles tonen.
+  const showActiveOnly = params.active === "1";
+
   let list;
   try {
-    list = await crmListLeads({ status, archive, q, page, pageSize });
+    list = await crmListLeads({
+      status,
+      activeOnly: showActiveOnly,
+      archive: !showActiveOnly,
+      q,
+      page,
+      pageSize,
+    });
   } catch (err) {
     return (
       <AdminChrome demo={isDemoMode()}>
@@ -70,11 +81,11 @@ export default async function AdminLeadsPage({
     ? `Zoekresultaat “${q}”`
     : status
       ? (STATUS_LABELS[status] ?? status)
-      : archive
-        ? "Alles"
-        : "Actief";
+      : showActiveOnly
+        ? "Actief (zonder geen contact)"
+        : "Alles";
 
-  const base = { status, archive, q };
+  const base = { status, activeOnly: showActiveOnly, q };
 
   return (
     <AdminChrome demo={isDemoMode()}>
@@ -90,10 +101,10 @@ export default async function AdminLeadsPage({
 
       <div className="crm-filter-bar">
         <Link className="crm-btn" href="/admin/leads">
-          Actief
+          Alles
         </Link>
-        <Link className="crm-btn" href="/admin/leads?archive=1">
-          Inclusief geen contact
+        <Link className="crm-btn" href="/admin/leads?active=1">
+          Zonder geen contact
         </Link>
         <Link className="crm-btn" href="/admin/leads?status=nieuw">
           Nieuw

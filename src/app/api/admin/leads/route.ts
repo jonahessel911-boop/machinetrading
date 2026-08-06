@@ -10,12 +10,14 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const archive = searchParams.get("archive") === "1";
+  const activeOnly = searchParams.get("active") === "1";
   const q = searchParams.get("q")?.trim();
 
   try {
     const { leads } = await crmListLeads({
       status,
-      archive,
+      archive: archive || !activeOnly,
+      activeOnly,
       q,
       page: 1,
       pageSize: 200,

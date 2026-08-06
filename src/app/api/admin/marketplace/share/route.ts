@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
-import { crmGetLead } from "@/lib/crm";
+import { crmGetLead, crmUpdateLead } from "@/lib/crm";
 import { dealerDirectShareEmail, sendEmail } from "@/lib/email";
 import { createLeadShareToken, leadShareUrl } from "@/lib/lead-share";
-import { mpSearchBuyers, mpTopBuyers } from "@/lib/marketplace-data";
+import {
+  mpSearchBuyers,
+  mpSyncOmschrijvingForLead,
+  mpTopBuyers,
+} from "@/lib/marketplace-data";
 import { vehicleLabel } from "@/lib/status";
 
 export async function GET(request: Request) {
@@ -34,6 +38,10 @@ export async function POST(request: Request) {
   const leadId = String(body.leadId ?? "");
   const email = String(body.email ?? "").trim();
   const greetingName = String(body.greetingName ?? body.toName ?? "").trim();
+  const omschrijvingFromForm =
+    typeof body.omschrijving === "string"
+      ? body.omschrijving.trim().slice(0, 2000)
+      : null;
 
   if (!leadId || !email || !email.includes("@")) {
     return NextResponse.json(
@@ -43,10 +51,22 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (omschrijvingFromForm !== null) {
+      await crmUpdateLead(leadId, {
+        omschrijving: omschrijvingFromForm || null,
+      });
+      await mpSyncOmschrijvingForLead(leadId, omschrijvingFromForm || null);
+    }
+
     const lead = await crmGetLead(leadId);
     if (!lead) {
       return NextResponse.json({ error: "Lead niet gevonden" }, { status: 404 });
     }
+
+    const omschrijving =
+      omschrijvingFromForm !== null
+        ? omschrijvingFromForm || null
+        : lead.omschrijving ?? null;
 
     const token = await createLeadShareToken(lead.id);
     const url = leadShareUrl(token);
@@ -56,7 +76,7 @@ export async function POST(request: Request) {
       greetingName,
       vehicleLabel: label,
       woonplaats: lead.woonplaats || "",
-      omschrijving: lead.omschrijving ?? null,
+      omschrijving,
       url,
     });
 
