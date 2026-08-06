@@ -23,6 +23,8 @@ type BuyerForm = {
   dealerUsername: string | null;
   dealerEnabled: boolean;
   hasDealerPassword: boolean;
+  dealerActivatedAt: string | null;
+  dailyDigest?: boolean;
 };
 
 const emptyForm = {
@@ -31,7 +33,7 @@ const emptyForm = {
   email: "",
   telefoon: "",
   dealerPassword: "",
-  dealerEnabled: true,
+  dealerEnabled: false,
   invoiceKvk: "",
   invoiceStraat: "",
   invoiceHuisnummer: "",
@@ -66,6 +68,7 @@ export function KopersClient({
         telefoon: b.telefoon,
         dealerUsername: b.dealerUsername,
         dealerEnabled: b.dealerEnabled,
+        dealerActivatedAt: b.dealerActivatedAt,
       })),
       dealPoints,
       range?.from ?? null,
@@ -138,6 +141,17 @@ export function KopersClient({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Mislukt");
       closeModal();
+      if (data.inviteSent) {
+        setMessage("Handelaar aangemaakt — inlogmail verstuurd.");
+      } else if (data.inviteError) {
+        setMessage(
+          `Handelaar aangemaakt, maar mail mislukt: ${data.inviteError}`,
+        );
+      } else {
+        setMessage(
+          "Handelaar geregistreerd (zonder login). Je kunt later een account toevoegen.",
+        );
+      }
       await refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Mislukt");
@@ -178,7 +192,7 @@ export function KopersClient({
             setOpen(true);
           }}
         >
-          Nieuwe koper
+          Nieuwe handelaar
         </button>
       </div>
 
@@ -186,6 +200,11 @@ export function KopersClient({
         <div className="crm-card-head">
           Handelaren · {rows.length} · periode-filter actief
         </div>
+        {message && !open ? (
+          <p className="crm-muted" style={{ padding: "0.75rem 1rem 0" }}>
+            {message}
+          </p>
+        ) : null}
         <div
           className="crm-table-wrap"
           style={{ border: "none", boxShadow: "none" }}
@@ -194,6 +213,7 @@ export function KopersClient({
             <thead>
               <tr>
                 <th>Bedrijfsnaam</th>
+                <th>Account</th>
                 <th>Deals</th>
                 <th>Bem. Vol</th>
                 <th>Omzet</th>
@@ -201,24 +221,49 @@ export function KopersClient({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <ClickableRow
-                  key={r.buyerId}
-                  href={`/admin/kopers/${r.buyerId}`}
-                >
-                  <td>
-                    <strong>{r.bedrijf}</strong>
-                    <div className="crm-muted">{r.naam}</div>
-                  </td>
-                  <td>{r.deals}</td>
-                  <td>{formatEuroK(r.waardeDeals)}</td>
-                  <td>{formatEuroK(r.omzet)}</td>
-                  <td>{formatEuro(r.winst)}</td>
-                </ClickableRow>
-              ))}
+              {rows.map((r) => {
+                const buyer = buyers.find((b) => b.id === r.buyerId);
+                const hasLogin = Boolean(
+                  buyer?.hasDealerPassword || buyer?.dealerUsername,
+                );
+                const activated = Boolean(buyer?.dealerActivatedAt);
+                return (
+                  <ClickableRow
+                    key={r.buyerId}
+                    href={`/admin/kopers/${r.buyerId}`}
+                  >
+                    <td>
+                      <strong>{r.bedrijf}</strong>
+                      <div className="crm-muted">{r.naam}</div>
+                    </td>
+                    <td>
+                      {!hasLogin ? (
+                        <span className="crm-muted">Geen login</span>
+                      ) : activated ? (
+                        <span className="crm-account-status crm-account-status--ok">
+                          <span aria-hidden="true">✓</span> Geactiveerd
+                        </span>
+                      ) : (
+                        <span className="crm-account-status crm-account-status--pending">
+                          <span aria-hidden="true">✕</span> Niet geactiveerd
+                        </span>
+                      )}
+                      {buyer?.dailyDigest ? (
+                        <div className="crm-muted" style={{ marginTop: "0.25rem" }}>
+                          Aanbod van de dag
+                        </div>
+                      ) : null}
+                    </td>
+                    <td>{r.deals}</td>
+                    <td>{formatEuroK(r.waardeDeals)}</td>
+                    <td>{formatEuroK(r.omzet)}</td>
+                    <td>{formatEuro(r.winst)}</td>
+                  </ClickableRow>
+                );
+              })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={5}>Nog geen kopers.</td>
+                  <td colSpan={6}>Nog geen kopers.</td>
                 </tr>
               )}
             </tbody>
@@ -237,13 +282,17 @@ export function KopersClient({
         >
           <div className="crm-modal">
             <div className="crm-modal-head">
-              <h2>Nieuwe koper</h2>
+              <h2>Handelaar registreren</h2>
               <button type="button" className="crm-btn" onClick={closeModal}>
                 Sluiten
               </button>
             </div>
             <div className="crm-modal-body">
               <form className="crm-form" onSubmit={createBuyer}>
+                <p className="crm-muted" style={{ marginTop: 0 }}>
+                  Registreer een bedrijf dat je hebt gebeld — standaard zonder
+                  marketplace-login. Zo houd je bij wie je hebt benaderd.
+                </p>
                 <KvkCompanySearch onSelect={applyKvk} />
 
                 <label>
@@ -273,12 +322,11 @@ export function KopersClient({
                   <input
                     className="crm-input"
                     type="email"
-                    required
                     value={form.email}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, email: e.target.value }))
                     }
-                    placeholder="naam@bedrijf.nl"
+                    placeholder="Optioneel — verplicht bij login"
                   />
                 </label>
                 <label>
@@ -289,6 +337,7 @@ export function KopersClient({
                     onChange={(e) =>
                       setForm((f) => ({ ...f, telefoon: e.target.value }))
                     }
+                    placeholder="Nummer waarop je belt"
                   />
                 </label>
 
@@ -303,7 +352,8 @@ export function KopersClient({
 
                 <hr className="crm-form-hr" />
                 <p className="crm-muted" style={{ margin: 0 }}>
-                  Marketplace-login — e-mail + wachtwoord
+                  Marketplace-login (optioneel) — leeg laten = alleen
+                  registratie, geen account
                 </p>
                 <label>
                   Wachtwoord
@@ -315,25 +365,30 @@ export function KopersClient({
                       setForm((f) => ({
                         ...f,
                         dealerPassword: e.target.value,
+                        dealerEnabled: e.target.value
+                          ? true
+                          : f.dealerEnabled,
                       }))
                     }
                     autoComplete="new-password"
                     placeholder="Leeg = geen login"
                   />
                 </label>
-                <label className="crm-check">
-                  <input
-                    type="checkbox"
-                    checked={form.dealerEnabled}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        dealerEnabled: e.target.checked,
-                      }))
-                    }
-                  />
-                  Dealer-login actief
-                </label>
+                {form.dealerPassword ? (
+                  <label className="crm-check">
+                    <input
+                      type="checkbox"
+                      checked={form.dealerEnabled}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          dealerEnabled: e.target.checked,
+                        }))
+                      }
+                    />
+                    Dealer-login actief + uitnodiging mailen
+                  </label>
+                ) : null}
 
                 {message && <p className="crm-form-error">{message}</p>}
 
@@ -342,7 +397,11 @@ export function KopersClient({
                   type="submit"
                   disabled={busy}
                 >
-                  {busy ? "Bezig…" : "Koper toevoegen"}
+                  {busy
+                    ? "Bezig…"
+                    : form.dealerPassword
+                      ? "Handelaar + login aanmaken"
+                      : "Registreren zonder login"}
                 </button>
               </form>
             </div>

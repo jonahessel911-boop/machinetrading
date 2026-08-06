@@ -1,8 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import type { DealerSession } from "@/lib/dealer-auth";
+
+function ActivatedBanner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("activated") === "1") {
+      setShow(true);
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("activated");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }
+  }, [searchParams, pathname, router]);
+
+  if (!show) return null;
+  return (
+    <div className="mp-activated-banner" role="status">
+      Uw account is geactiveerd
+      <button
+        type="button"
+        className="crm-btn"
+        style={{ marginLeft: "0.75rem" }}
+        onClick={() => setShow(false)}
+      >
+        Sluiten
+      </button>
+    </div>
+  );
+}
 
 export function MarketplaceChrome({
   dealer,
@@ -95,6 +128,9 @@ export function MarketplaceChrome({
           Demo-modus — geen Supabase gekoppeld (lege lokale store).
         </div>
       )}
+      <Suspense fallback={null}>
+        <ActivatedBanner />
+      </Suspense>
       {isGuest && (
         <div className="mp-guest-banner">
           Je bekijkt als gast.{" "}

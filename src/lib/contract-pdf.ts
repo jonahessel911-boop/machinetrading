@@ -397,11 +397,11 @@ export async function buildContractPdf(
     buyer.telefoon || "",
   ];
   const bemiddelaarLines = [
-    company.legalName || company.name,
-    company.phone,
-    company.email,
+    company.name,
     `${company.street} ${company.houseNumber}`,
     `${company.postcode} ${company.city}`,
+    company.phone,
+    company.email,
     `KvK: ${company.kvk}`,
   ];
   const h1 = drawPartyBox(ctx, MARGIN_X, boxW, "VERKOPER", verkoperLines, boxTop);

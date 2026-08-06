@@ -1,18 +1,31 @@
 import { NextResponse } from "next/server";
-import { createSession, validateCredentials } from "@/lib/auth";
+import { authenticateAdmin, createSession } from "@/lib/auth";
 
 export async function POST(request: Request) {
   const body = await request.json();
   const user = String(body.user ?? "");
   const pass = String(body.pass ?? "");
 
-  if (!validateCredentials(user, pass)) {
+  try {
+    const session = await authenticateAdmin(user, pass);
+    if (!session) {
+      return NextResponse.json(
+        { error: "Ongeldige inloggegevens" },
+        { status: 401 },
+      );
+    }
+
+    await createSession({
+      userId: session.userId,
+      email: session.email,
+      naam: session.naam,
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[admin:login]", err);
     return NextResponse.json(
-      { error: "Ongeldige inloggegevens" },
-      { status: 401 },
+      { error: err instanceof Error ? err.message : "Login mislukt" },
+      { status: 500 },
     );
   }
-
-  await createSession();
-  return NextResponse.json({ ok: true });
 }

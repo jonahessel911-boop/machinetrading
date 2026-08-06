@@ -7,6 +7,11 @@ export type BuyerRow = {
   dealer_username?: string | null;
   dealer_password_hash?: string | null;
   dealer_enabled?: boolean;
+  dealer_activated_at?: string | null;
+  /** Interne CRM-notities */
+  notities?: string | null;
+  /** Ontvangt dagelijks "Aanbod van de dag" */
+  daily_digest?: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -16,6 +21,8 @@ export type LeadRow = {
   merk: string;
   model: string | null;
   timing: string;
+  /** Richtprijs die verkoper via formulier opgaf */
+  richtprijs?: number | null;
   naam: string;
   email: string;
   telefoon: string;
@@ -26,6 +33,8 @@ export type LeadRow = {
   woonplaats: string;
   status: string;
   contact_attempts: number;
+  /** Timestamps van contactpogingen (ISO) */
+  contact_attempt_times?: string[] | null;
   inkoopprijs: number | null;
   marge: number | null;
   verkoopprijs: number | null;
@@ -39,6 +48,8 @@ export type LeadRow = {
   meta_fbp?: string | null;
   meta_fbc?: string | null;
   meta_fbclid?: string | null;
+  /** Portaal/marketplace omschrijving */
+  omschrijving?: string | null;
   buyer_id: string | null;
   created_at: string;
   updated_at: string;
@@ -54,6 +65,7 @@ export type LeadPhotoRow = {
   url: string;
   storage_path: string | null;
   created_at: string;
+  sort_order?: number;
 };
 
 export type ContractRow = {
@@ -75,6 +87,12 @@ export type Buyer = {
   dealerUsername: string | null;
   dealerEnabled: boolean;
   hasDealerPassword: boolean;
+  /** Eerste marketplace-login; null = nog niet geactiveerd */
+  dealerActivatedAt: string | null;
+  /** Interne CRM-notities */
+  notities: string;
+  /** Ontvangt dagelijks "Aanbod van de dag" */
+  dailyDigest: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -89,6 +107,7 @@ export type LeadPhoto = {
   url: string;
   storagePath: string | null;
   createdAt: string;
+  sortOrder: number;
 };
 
 export type Contract = {
@@ -107,6 +126,8 @@ export type Lead = {
   merk: string;
   model: string | null;
   timing: string;
+  /** Richtprijs die verkoper via formulier opgaf */
+  richtprijs: number | null;
   naam: string;
   email: string;
   telefoon: string;
@@ -117,6 +138,8 @@ export type Lead = {
   woonplaats: string;
   status: string;
   contactAttempts: number;
+  /** Timestamps van contactpogingen (ISO) */
+  contactAttemptTimes: string[];
   inkoopprijs: number | null;
   marge: number | null;
   verkoopprijs: number | null;
@@ -130,12 +153,17 @@ export type Lead = {
   metaFbp: string | null;
   metaFbc: string | null;
   metaFbclid: string | null;
+  /** Portaal/marketplace omschrijving */
+  omschrijving: string | null;
   buyerId: string | null;
   createdAt: string;
   updatedAt: string;
   buyer?: Buyer | null;
   photos?: LeadPhoto[];
   contracts?: Contract[];
+  /** Hoogste handelaarsbod (selectieportaal) */
+  highestBid?: number | null;
+  highestBidBidder?: string | null;
 };
 
 export function mapBuyer(row: BuyerRow): Buyer {
@@ -148,6 +176,9 @@ export function mapBuyer(row: BuyerRow): Buyer {
     dealerUsername: row.dealer_username ?? null,
     dealerEnabled: Boolean(row.dealer_enabled),
     hasDealerPassword: Boolean(row.dealer_password_hash),
+    dealerActivatedAt: row.dealer_activated_at ?? null,
+    notities: row.notities ?? "",
+    dailyDigest: Boolean(row.daily_digest),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -164,6 +195,7 @@ export function mapPhoto(row: LeadPhotoRow): LeadPhoto {
     url: row.url,
     storagePath: row.storage_path,
     createdAt: row.created_at,
+    sortOrder: Number(row.sort_order ?? 0),
   };
 }
 
@@ -194,6 +226,10 @@ export function mapLead(
     merk: row.merk,
     model: row.model,
     timing: row.timing,
+    richtprijs:
+      row.richtprijs == null || !Number.isFinite(Number(row.richtprijs))
+        ? null
+        : Number(row.richtprijs),
     naam: row.naam,
     email: row.email,
     telefoon: row.telefoon,
@@ -204,6 +240,9 @@ export function mapLead(
     woonplaats: row.woonplaats,
     status: row.status,
     contactAttempts: row.contact_attempts,
+    contactAttemptTimes: Array.isArray(row.contact_attempt_times)
+      ? row.contact_attempt_times.map((t) => String(t))
+      : [],
     inkoopprijs: row.inkoopprijs,
     marge: row.marge,
     verkoopprijs: row.verkoopprijs ?? null,
@@ -214,11 +253,16 @@ export function mapLead(
     metaFbp: row.meta_fbp ?? null,
     metaFbc: row.meta_fbc ?? null,
     metaFbclid: row.meta_fbclid ?? null,
+    omschrijving: row.omschrijving ?? null,
     buyerId: row.buyer_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     buyer: row.buyer ? mapBuyer(row.buyer) : row.buyer === null ? null : undefined,
-    photos: row.photos?.map(mapPhoto),
+    photos: row.photos
+      ? [...row.photos]
+          .map(mapPhoto)
+          .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt))
+      : undefined,
     contracts: row.contracts?.map(mapContract),
   };
 }

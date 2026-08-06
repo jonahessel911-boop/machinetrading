@@ -65,6 +65,58 @@ export async function getDealerSession(): Promise<DealerSession | null> {
   }
 }
 
+export async function createDealerInviteToken(opts: {
+  email: string;
+  password: string;
+  buyerId: string;
+}): Promise<string> {
+  return new SignJWT({
+    role: "dealer_invite",
+    email: opts.email.trim().toLowerCase(),
+    password: opts.password,
+    buyerId: opts.buyerId,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("30d")
+    .sign(getSecret());
+}
+
+export async function verifyDealerInviteToken(
+  token: string,
+): Promise<{ email: string; password: string; buyerId: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, getSecret());
+    if (
+      payload.role !== "dealer_invite" ||
+      !payload.email ||
+      !payload.password ||
+      !payload.buyerId
+    ) {
+      return null;
+    }
+    return {
+      email: String(payload.email).toLowerCase(),
+      password: String(payload.password),
+      buyerId: String(payload.buyerId),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function dealerSiteUrl(): string {
+  const raw =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    process.env.COMPANY_WEBSITE?.trim() ||
+    "https://www.heftruckverkocht.nl";
+  return raw.replace(/\/$/, "");
+}
+
+export function dealerInviteLoginUrl(token: string): string {
+  return `${dealerSiteUrl()}/dealer/login?invite=${encodeURIComponent(token)}`;
+}
+
 export async function requireDealer(): Promise<DealerSession> {
   const session = await getDealerSession();
   if (!session) throw new Error("Unauthorized");

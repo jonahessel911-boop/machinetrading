@@ -10,7 +10,6 @@ import {
   type CSSProperties,
 } from "react";
 import { BRANDS, TIMING_OPTIONS } from "@/lib/constants";
-import { formatNlMobileDisplay, toE164NlMobile } from "@/lib/phone";
 import { vehicleLabel } from "@/lib/status";
 import {
   captureFbclidFromUrl,
@@ -26,6 +25,7 @@ type Step =
   | "brand"
   | "model"
   | "timing"
+  | "price"
   | "name"
   | "loading"
   | "contact"
@@ -35,13 +35,14 @@ const STEPS: Step[] = [
   "brand",
   "model",
   "timing",
+  "price",
   "name",
   "loading",
   "contact",
   "done",
 ];
 
-const TOTAL = 6;
+const TOTAL = 7;
 const STORAGE_KEY = "hv-form-funnel-v1";
 const FIELD_HINT = "Vul dit nog in";
 
@@ -49,6 +50,7 @@ type Persisted = {
   merk: string;
   model: string;
   timing: string;
+  richtprijs: string;
   naam: string;
   email: string;
   telefoon: string;
@@ -61,6 +63,14 @@ type Persisted = {
   fbc?: string | null;
   fbclid?: string | null;
 };
+
+function parseRichtprijsInput(raw: string): number | null {
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) return null;
+  const n = Number(digits);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
 
 function stepFromNum(n: number): Step {
   const i = Math.min(Math.max(Math.floor(n), 1), STEPS.length) - 1;
@@ -92,14 +102,13 @@ export function FormFunnel() {
   const [merk, setMerk] = useState(stored.merk ?? "");
   const [model, setModel] = useState(stored.model ?? "");
   const [timing, setTiming] = useState(stored.timing ?? "");
+  const [richtprijs, setRichtprijs] = useState(stored.richtprijs ?? "");
   const [buyerCount] = useState(
     () => stored.buyerCount ?? Math.floor(Math.random() * 11) + 14,
   );
   const [naam, setNaam] = useState(stored.naam ?? "");
   const [email, setEmail] = useState(stored.email ?? "");
-  const [telefoon, setTelefoon] = useState(() =>
-    formatNlMobileDisplay(stored.telefoon ?? ""),
-  );
+  const [telefoon, setTelefoon] = useState(stored.telefoon ?? "");
   const [woonplaats, setWoonplaats] = useState(stored.woonplaats ?? "");
   const [akkoord, setAkkoord] = useState(stored.akkoord ?? false);
   const [submitting, setSubmitting] = useState(false);
@@ -177,6 +186,7 @@ export function FormFunnel() {
       merk,
       model,
       timing,
+      richtprijs,
       naam,
       email,
       telefoon,
@@ -197,6 +207,7 @@ export function FormFunnel() {
     merk,
     model,
     timing,
+    richtprijs,
     naam,
     email,
     telefoon,
@@ -216,13 +227,15 @@ export function FormFunnel() {
         ? 2
         : step === "timing"
           ? 3
-          : step === "name"
+          : step === "price"
             ? 4
-            : step === "loading"
+            : step === "name"
               ? 5
-              : step === "contact"
+              : step === "loading"
                 ? 6
-                : 6;
+                : step === "contact"
+                  ? 7
+                  : 7;
 
   const barPct =
     step === "done"
@@ -239,6 +252,8 @@ export function FormFunnel() {
         return `Perfect. Welk model is jouw ${merk || "heftruck"}?`;
       case "timing":
         return `Perfect, en wanneer wil je de ${label} het liefst verkopen?`;
+      case "price":
+        return `Wat is de richtprijs die je ervoor wilt hebben?`;
       case "name":
         return "Hoe mogen we je noemen?";
       case "loading":
@@ -270,15 +285,17 @@ export function FormFunnel() {
       return;
     }
     const merkOk = Boolean(merk);
+    const priceOk = parseRichtprijsInput(richtprijs) != null;
     if (
       (step === "loading" || step === "contact") &&
-      (!merkOk || !timing || naam.trim().length < 2)
+      (!merkOk || !timing || !priceOk || naam.trim().length < 2)
     ) {
       if (!merkOk) goTo("brand", "replace");
       else if (!timing) goTo("timing", "replace");
+      else if (!priceOk) goTo("price", "replace");
       else goTo("name", "replace");
     }
-  }, [step, merk, timing, naam, leadId, goTo]);
+  }, [step, merk, timing, richtprijs, naam, leadId, goTo]);
 
   useEffect(() => {
     if (step !== "loading") return;
@@ -316,20 +333,10 @@ export function FormFunnel() {
     const nextErrors: Record<string, string> = {};
     if (!email.trim()) nextErrors.email = FIELD_HINT;
     if (!telefoon.trim()) nextErrors.telefoon = FIELD_HINT;
-    else if (!toE164NlMobile(telefoon)) {
-      nextErrors.telefoon = "Vul een geldig Nederlands mobiel nummer in";
-    }
     if (!akkoord) nextErrors.akkoord = FIELD_HINT;
     if (Object.keys(nextErrors).length) {
       setFieldErrors(nextErrors);
       setError("");
-      return;
-    }
-    const phoneE164 = toE164NlMobile(telefoon);
-    if (!phoneE164) {
-      setFieldErrors({
-        telefoon: "Vul een geldig Nederlands mobiel nummer in",
-      });
       return;
     }
     setSubmitting(true);
@@ -350,9 +357,10 @@ export function FormFunnel() {
           merk: merk || "Onbekend",
           model: model || "Onbekend",
           timing,
+          richtprijs: parseRichtprijsInput(richtprijs),
           naam,
           email,
-          telefoon: phoneE164,
+          telefoon: telefoon.trim(),
           woonplaats: "",
           fbp: sendFbp,
           fbc: sendFbc,
@@ -370,6 +378,11 @@ export function FormFunnel() {
         value: 0,
         currency: "EUR",
       });
+      // Direct naar klantportaal (foto's uploaden + status)
+      if (typeof data.portalUrl === "string" && data.portalUrl.startsWith("/mijn/")) {
+        window.location.assign(data.portalUrl);
+        return;
+      }
       goTo("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Er ging iets mis");
@@ -553,7 +566,7 @@ export function FormFunnel() {
                       return;
                     }
                     setTiming(value);
-                    goTo("name");
+                    goTo("price");
                   }}
                 >
                   <select
@@ -584,6 +597,63 @@ export function FormFunnel() {
                     type="button"
                     className="form-back"
                     onClick={() => goTo("model")}
+                  >
+                    ← Terug
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {step === "price" && (
+              <div className="form-step">
+                <form
+                  className="form-step-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const value = String(
+                      new FormData(e.currentTarget).get("richtprijs") || "",
+                    );
+                    const parsed = parseRichtprijsInput(value);
+                    if (parsed == null) {
+                      setFieldErrors({ richtprijs: FIELD_HINT });
+                      return;
+                    }
+                    setRichtprijs(String(parsed));
+                    goTo("name");
+                  }}
+                >
+                  <div
+                    className={`form-euro-field${fieldErrors.richtprijs ? " is-invalid" : ""}`}
+                  >
+                    <span className="form-euro-prefix" aria-hidden="true">
+                      €
+                    </span>
+                    <input
+                      name="richtprijs"
+                      className={`form-field${fieldErrors.richtprijs ? " is-invalid" : ""}`}
+                      inputMode="numeric"
+                      placeholder="Bijv. 12500"
+                      value={richtprijs}
+                      onChange={(e) => {
+                        setRichtprijs(e.target.value.replace(/[^\d.,\s]/g, ""));
+                        clearFieldError("richtprijs");
+                      }}
+                      autoComplete="off"
+                      aria-label="Richtprijs in euro"
+                    />
+                  </div>
+                  {fieldErrors.richtprijs && (
+                    <p className="form-field-error" role="alert">
+                      {fieldErrors.richtprijs}
+                    </p>
+                  )}
+                  <button type="submit" className="form-next">
+                    Volgende →
+                  </button>
+                  <button
+                    type="button"
+                    className="form-back"
+                    onClick={() => goTo("timing")}
                   >
                     ← Terug
                   </button>
@@ -631,7 +701,7 @@ export function FormFunnel() {
                   <button
                     type="button"
                     className="form-back"
-                    onClick={() => goTo("timing")}
+                    onClick={() => goTo("price")}
                   >
                     ← Terug
                   </button>
@@ -685,31 +755,19 @@ export function FormFunnel() {
                         {fieldErrors.email}
                       </p>
                     )}
-                    <div
-                      className={`form-phone${fieldErrors.telefoon ? " is-invalid" : ""}`}
-                    >
-                      <span className="form-phone-flag" aria-hidden="true">
-                        🇳🇱
-                      </span>
-                      <input
-                        className="form-phone-input"
-                        type="tel"
-                        inputMode="tel"
-                        placeholder="+31 6 12 34 56 78"
-                        value={telefoon}
-                        onChange={(e) => {
-                          setTelefoon(formatNlMobileDisplay(e.target.value));
-                          clearFieldError("telefoon");
-                        }}
-                        onBlur={() => {
-                          if (telefoon && !telefoon.startsWith("+31")) {
-                            setTelefoon(formatNlMobileDisplay(telefoon));
-                          }
-                        }}
-                        autoComplete="tel"
-                        aria-label="Mobiel telefoonnummer"
-                      />
-                    </div>
+                    <input
+                      className={`form-field${fieldErrors.telefoon ? " is-invalid" : ""}`}
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="Telefoonnummer"
+                      value={telefoon}
+                      onChange={(e) => {
+                        setTelefoon(e.target.value);
+                        clearFieldError("telefoon");
+                      }}
+                      autoComplete="tel"
+                      aria-label="Telefoonnummer"
+                    />
                     {fieldErrors.telefoon && (
                       <p className="form-field-error" role="alert">
                         {fieldErrors.telefoon}
@@ -791,21 +849,38 @@ export function FormFunnel() {
                           setUploading(true);
                           setUploadMsg("");
                           try {
-                            const body = new FormData();
-                            Array.from(files).forEach((f) =>
-                              body.append("photos", f),
+                            const { compressImagesForUpload } = await import(
+                              "@/lib/client-image"
                             );
-                            const res = await fetch(
-                              `/api/leads/${leadId}/photos`,
-                              { method: "POST", body },
+                            const compressed = await compressImagesForUpload(
+                              Array.from(files),
                             );
-                            const data = await res.json();
-                            if (!res.ok) {
-                              throw new Error(data.error || "Upload mislukt");
+                            const added: { id: string; url: string }[] = [];
+                            for (const file of compressed) {
+                              const body = new FormData();
+                              body.append("photos", file);
+                              const res = await fetch(
+                                `/api/leads/${leadId}/photos`,
+                                { method: "POST", body },
+                              );
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok) {
+                                throw new Error(
+                                  (data as { error?: string }).error ||
+                                    (res.status === 413
+                                      ? "Foto is te groot. Probeer een kleinere foto."
+                                      : "Upload mislukt"),
+                                );
+                              }
+                              const photos = (
+                                data as {
+                                  photos?: { id: string; url: string }[];
+                                }
+                              ).photos;
+                              for (const p of photos ?? []) {
+                                added.push({ id: p.id, url: p.url });
+                              }
                             }
-                            const added = (
-                              data.photos as { id: string; url: string }[]
-                            ).map((p) => ({ id: p.id, url: p.url }));
                             setPhotos((prev) => {
                               const ids = new Set(prev.map((p) => p.id));
                               return [

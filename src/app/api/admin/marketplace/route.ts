@@ -5,8 +5,10 @@ import {
   mpListAllAdmin,
   mpPublishLead,
   mpRepublish,
+  mpSyncOmschrijvingForLead,
   mpUnpublish,
 } from "@/lib/marketplace-data";
+import { crmUpdateLead } from "@/lib/crm";
 
 export async function GET(request: Request) {
   if (!(await isAuthenticated())) {
@@ -45,11 +47,38 @@ export async function POST(request: Request) {
       if (!leadId) {
         return NextResponse.json({ error: "leadId verplicht" }, { status: 400 });
       }
+      const omschrijving =
+        typeof body.omschrijving === "string"
+          ? body.omschrijving.trim()
+          : body.omschrijving ?? null;
+
+      // Houd lead.omschrijving in sync met marketplace
+      await crmUpdateLead(leadId, {
+        omschrijving: omschrijving || null,
+      });
+
       const listing = await mpPublishLead({
         leadId,
-        omschrijving: body.omschrijving ?? null,
+        omschrijving: omschrijving ?? null,
       });
       return NextResponse.json(listing);
+    }
+
+    if (action === "update_omschrijving") {
+      const leadId = String(body.leadId ?? "");
+      if (!leadId) {
+        return NextResponse.json({ error: "leadId verplicht" }, { status: 400 });
+      }
+      const omschrijving =
+        typeof body.omschrijving === "string"
+          ? body.omschrijving.trim()
+          : "";
+      await crmUpdateLead(leadId, {
+        omschrijving: omschrijving || null,
+      });
+      await mpSyncOmschrijvingForLead(leadId, omschrijving || null);
+      const listing = await mpGetByLeadId(leadId);
+      return NextResponse.json({ ok: true, listing });
     }
 
     if (action === "republish") {

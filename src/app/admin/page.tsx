@@ -3,23 +3,42 @@ import { redirect } from "next/navigation";
 import { AdminChrome } from "@/components/admin/AdminChrome";
 import { ClickableRow } from "@/components/admin/ClickableRow";
 import { DashboardReport } from "@/components/admin/DashboardReport";
+import { LeadPhotoThumb } from "@/components/admin/LeadPhotoThumb";
 import { isAuthenticated } from "@/lib/auth";
 import { crmListLeads, crmStats, isDemoMode } from "@/lib/crm";
+import { mpLiveLeadIds } from "@/lib/marketplace-data";
 import { crmDashboardSeries } from "@/lib/period-data";
-import { formatDateTime, labelForStatus } from "@/lib/status";
+import { formatDateTime, labelForStatus, leadStatusBadgeClass } from "@/lib/status";
 
 function badgeClass(status: string) {
-  if (status === "nieuw") return "crm-badge crm-badge-nieuw";
-  if (status === "deal") return "crm-badge crm-badge-deal";
-  if (status.startsWith("contact_")) return "crm-badge crm-badge-contact";
-  if (
-    status === "geen_contact" ||
-    status === "geen_interesse" ||
-    status === "verkeerd_telefoonnummer"
-  ) {
-    return "crm-badge crm-badge-dead";
-  }
-  return "crm-badge";
+  return leadStatusBadgeClass(status);
+}
+
+function MarketplaceIcon({ live }: { live: boolean }) {
+  return (
+    <span
+      className={live ? "crm-mp-icon is-live" : "crm-mp-icon"}
+      title={live ? "Op de veiling" : "Niet op de veiling"}
+      aria-label={live ? "Op de veiling" : "Niet op de veiling"}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M3 9l1.5-6h15L21 9" />
+        <path d="M3 9v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9" />
+        <path d="M3 9h18" />
+        <path d="M9 20V12h6v8" />
+      </svg>
+    </span>
+  );
 }
 
 export default async function AdminDashboardPage() {
@@ -30,6 +49,8 @@ export default async function AdminDashboardPage() {
     crmListLeads({ limit: 10 }),
     crmDashboardSeries(),
   ]);
+
+  const liveOnMarketplace = await mpLiveLeadIds(recent.map((l) => l.id));
 
   return (
     <AdminChrome demo={isDemoMode()}>
@@ -63,7 +84,6 @@ export default async function AdminDashboardPage() {
             <thead>
               <tr>
                 <th>Lead</th>
-                <th>Adres</th>
                 <th>Machine</th>
                 <th>Status</th>
                 <th>Foto&apos;s</th>
@@ -74,11 +94,14 @@ export default async function AdminDashboardPage() {
               {recent.map((lead) => (
                 <ClickableRow key={lead.id} href={`/admin/leads/${lead.id}`}>
                   <td>
-                    <strong>{lead.naam}</strong>
+                    <strong className="crm-lead-name">
+                      {lead.naam}
+                      <MarketplaceIcon
+                        live={liveOnMarketplace.has(lead.id)}
+                      />
+                    </strong>
                     <div className="crm-muted">{lead.telefoon}</div>
-                  </td>
-                  <td>
-                    {[lead.postcode, lead.woonplaats].filter(Boolean).join(" ")}
+                    <div className="crm-muted">{lead.email}</div>
                   </td>
                   <td>
                     {lead.merk} {lead.model}
@@ -88,13 +111,15 @@ export default async function AdminDashboardPage() {
                       {labelForStatus(lead.status, lead.contactAttempts)}
                     </span>
                   </td>
-                  <td>{lead.photos?.length ?? 0}</td>
+                  <td>
+                    <LeadPhotoThumb photos={lead.photos} />
+                  </td>
                   <td>{formatDateTime(lead.createdAt)}</td>
                 </ClickableRow>
               ))}
               {recent.length === 0 && (
                 <tr>
-                  <td colSpan={6}>Nog geen leads.</td>
+                  <td colSpan={5}>Nog geen leads.</td>
                 </tr>
               )}
             </tbody>

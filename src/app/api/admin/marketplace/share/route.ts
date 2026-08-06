@@ -1,21 +1,10 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
-import { marketplaceShareEmail, sendEmail } from "@/lib/email";
-import { listingTitle } from "@/lib/marketplace";
-import {
-  mpGetByLeadId,
-  mpPublishLead,
-  mpRecordShare,
-  mpSearchBuyers,
-  mpTopBuyers,
-} from "@/lib/marketplace-data";
-
-function absoluteUrl(path: string, request: Request): string {
-  const env = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
-  if (env) return `${env}${path}`;
-  const origin = new URL(request.url).origin;
-  return `${origin}${path}`;
-}
+import { crmGetLead } from "@/lib/crm";
+import { dealerDirectShareEmail, sendEmail } from "@/lib/email";
+import { createLeadShareToken, leadShareUrl } from "@/lib/lead-share";
+import { mpSearchBuyers, mpTopBuyers } from "@/lib/marketplace-data";
+import { vehicleLabel } from "@/lib/status";
 
 export async function GET(request: Request) {
   if (!(await isAuthenticated())) {
@@ -44,32 +33,31 @@ export async function POST(request: Request) {
   const body = await request.json();
   const leadId = String(body.leadId ?? "");
   const email = String(body.email ?? "").trim();
-  const buyerId = body.buyerId ? String(body.buyerId) : null;
-  const toName = String(body.toName ?? "handelaar");
+  const greetingName = String(body.greetingName ?? body.toName ?? "").trim();
 
-  if (!leadId || !email) {
+  if (!leadId || !email || !email.includes("@")) {
     return NextResponse.json(
-      { error: "leadId en email zijn verplicht" },
+      { error: "leadId en geldig e-mailadres zijn verplicht" },
       { status: 400 },
     );
   }
 
   try {
-    let listing = await mpGetByLeadId(leadId);
-    if (!listing?.isLive) {
-      listing = await mpPublishLead({
-        leadId,
-        omschrijving: body.omschrijving ?? null,
-      });
+    const lead = await crmGetLead(leadId);
+    if (!lead) {
+      return NextResponse.json({ error: "Lead niet gevonden" }, { status: 404 });
     }
 
-    const url = absoluteUrl(listing.publicUrl!, request);
-    const mail = marketplaceShareEmail({
-      toName,
-      listingTitle: listingTitle(listing),
-      woonplaats: listing.woonplaats,
+    const token = await createLeadShareToken(lead.id);
+    const url = leadShareUrl(token);
+    const label = vehicleLabel(lead.merk, lead.model);
+
+    const mail = dealerDirectShareEmail({
+      greetingName,
+      vehicleLabel: label,
+      woonplaats: lead.woonplaats || "",
+      omschrijving: lead.omschrijving ?? null,
       url,
-      endsAt: listing.endsAt,
     });
 
     const sent = await sendEmail({
@@ -86,17 +74,10 @@ export async function POST(request: Request) {
       );
     }
 
-    await mpRecordShare({
-      listingId: listing.id,
-      email,
-      buyerId,
-    });
-
     return NextResponse.json({
       ok: true,
       mode: sent.mode,
       url,
-      listing,
       message:
         sent.mode === "demo"
           ? `Demo: e-mail gesimuleerd naar ${email}. Deel-link: ${url}`

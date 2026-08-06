@@ -262,6 +262,11 @@ export default function AlgemeneVoorwaardenPage() {
             <a href={`tel:${company.phone.replace(/\s/g, "")}`}>
               {company.phone}
             </a>
+            <span>
+              {company.street} {company.houseNumber}, {company.postcode}{" "}
+              {company.city}
+            </span>
+            <span>KvK {company.kvk}</span>
           </div>
         </div>
       </footer>

@@ -42,10 +42,22 @@ export function AdminChrome({
             Leads
           </Link>
           <Link
+            href="/admin/bel-systeem"
+            className={isActive("/admin/bel-systeem") ? "active" : ""}
+          >
+            Bel systeem
+          </Link>
+          <Link
             href="/admin/kopers"
             className={isActive("/admin/kopers") ? "active" : ""}
           >
             Kopers
+          </Link>
+          <Link
+            href="/admin/selecties"
+            className={isActive("/admin/selecties") ? "active" : ""}
+          >
+            Selecties
           </Link>
           <Link
             href="/admin/marketplace"
@@ -64,6 +76,18 @@ export function AdminChrome({
             className={isActive("/admin/lead-cr") ? "active" : ""}
           >
             Lead CR
+          </Link>
+          <Link
+            href="/admin/users"
+            className={isActive("/admin/users") ? "active" : ""}
+          >
+            Users
+          </Link>
+          <Link
+            href="/admin/instellingen"
+            className={isActive("/admin/instellingen") ? "active" : ""}
+          >
+            Instellingen
           </Link>
         </nav>
         <div className="crm-header-actions">

@@ -52,6 +52,17 @@ export async function PATCH(request: Request, { params }: Params) {
     patch.dealer_enabled = Boolean(body.dealerEnabled);
   }
 
+  if ("notities" in body) {
+    patch.notities =
+      typeof body.notities === "string"
+        ? body.notities.trim().slice(0, 8000) || null
+        : null;
+  }
+
+  if (body.dailyDigest !== undefined) {
+    patch.daily_digest = Boolean(body.dailyDigest);
+  }
+
   if (
     patch.dealer_username === null ||
     (body.dealerEnabled === false && !body.dealerUsername)

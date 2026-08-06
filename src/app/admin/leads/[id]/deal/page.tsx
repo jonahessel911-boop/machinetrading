@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { AdminChrome } from "@/components/admin/AdminChrome";
 import { DealPageClient } from "@/components/admin/DealPageClient";
+import { crmListAdminUsers } from "@/lib/admin-users";
 import { isAuthenticated } from "@/lib/auth";
 import { getCompanyInfo } from "@/lib/company";
+import { salesRepOptions } from "@/lib/constants";
 import {
   crmGetLead,
   crmListBuyersSimple,
@@ -17,9 +19,10 @@ export default async function DealPage({
   if (!(await isAuthenticated())) redirect("/admin/login");
 
   const { id } = await params;
-  const [lead, buyers] = await Promise.all([
+  const [lead, buyers, users] = await Promise.all([
     crmGetLead(id),
     crmListBuyersSimple(),
+    crmListAdminUsers().catch(() => []),
   ]);
 
   if (!lead) {
@@ -36,6 +39,7 @@ export default async function DealPage({
         initialLead={lead}
         buyers={buyers}
         company={getCompanyInfo()}
+        salesReps={salesRepOptions(users.map((u) => u.naam))}
       />
     </AdminChrome>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { SALES_REPS } from "@/lib/constants";
+import { salesRepOptions } from "@/lib/constants";
 import {
   buildPeriodTree,
   type CostPoint,
@@ -103,10 +103,13 @@ export function PeriodOverview({
   deals,
   leads,
   costs,
+  salesReps = [],
 }: {
   deals: DealPoint[];
   leads: LeadPoint[];
   costs: CostPoint[];
+  /** Jona + aangemaakte admin-users */
+  salesReps?: string[];
   /** @deprecated kept for older callers */
   initialTree?: DayMetrics[];
   initialTotals?: DayMetrics;
@@ -114,18 +117,10 @@ export function PeriodOverview({
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [open, setOpen] = useState<Set<string>>(() => new Set());
 
-  const repOptions = useMemo(() => {
-    const names = new Set<string>(SALES_REPS);
-    for (const d of deals) {
-      const n = d.verkoopmedewerker?.trim();
-      if (n) names.add(n);
-    }
-    for (const l of leads) {
-      const n = l.verkoopmedewerker?.trim();
-      if (n) names.add(n);
-    }
-    return [...names].sort((a, b) => a.localeCompare(b, "nl"));
-  }, [deals, leads]);
+  const repOptions = useMemo(
+    () => salesRepOptions(salesReps),
+    [salesReps],
+  );
 
   const tree = useMemo(() => {
     const filteredDeals = deals.filter((d) =>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MarketplaceDetailClient } from "@/components/marketplace/MarketplaceDetailClient";
 import { MarketplaceChrome } from "@/components/marketplace/MarketplaceChrome";
@@ -27,6 +28,11 @@ export default async function MarketplaceListingPage({
     <MarketplaceChrome dealer={dealer} demo={isDemoMode()}>
       <div className="crm-page-header">
         <div>
+          <p className="crm-subtitle" style={{ marginBottom: "0.55rem" }}>
+            <Link href="/marketplace" className="crm-btn">
+              ← Terug naar overzicht
+            </Link>
+          </p>
           <p className="crm-subtitle">
             {listing.woonplaats}
             {listing.isLive ? (

@@ -119,7 +119,7 @@ export async function buildInvoicePdf(
     company.legalName,
     companyAddressLine(company),
     `KvK ${company.kvk}`,
-    `BTW ${company.btw}`,
+    ...(company.btw.trim() ? [`BTW ${company.btw}`] : []),
     company.email,
     company.phone,
   ];

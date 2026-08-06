@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { crmCreateBuyer, crmListBuyers } from "@/lib/crm";
+import {
+  createDealerInviteToken,
+  dealerInviteLoginUrl,
+} from "@/lib/dealer-auth";
+import { dealerInviteEmail, sendEmail } from "@/lib/email";
 
 export async function GET() {
   if (!(await isAuthenticated())) {
@@ -39,17 +44,20 @@ export async function POST(request: Request) {
   }
 
   try {
+    const dealerPassword = body.dealerPassword
+      ? String(body.dealerPassword)
+      : null;
+    const dealerUsername = body.dealerUsername
+      ? String(body.dealerUsername).trim()
+      : null;
+
     const buyer = await crmCreateBuyer({
       naam: String(body.naam).trim(),
       bedrijf: String(body.bedrijf).trim(),
       email: body.email ? String(body.email).trim() : null,
       telefoon: body.telefoon ? String(body.telefoon).trim() : null,
-      dealerUsername: body.dealerUsername
-        ? String(body.dealerUsername).trim()
-        : null,
-      dealerPassword: body.dealerPassword
-        ? String(body.dealerPassword)
-        : null,
+      dealerUsername,
+      dealerPassword,
       dealerEnabled: body.dealerEnabled !== false,
       invoice: body.invoice
         ? {
@@ -69,7 +77,43 @@ export async function POST(request: Request) {
           }
         : undefined,
     });
-    return NextResponse.json(buyer);
+
+    let inviteSent = false;
+    if (dealerUsername && dealerPassword && buyer.dealerEnabled) {
+      const to = (buyer.email || dealerUsername).trim();
+      if (to.includes("@")) {
+        const token = await createDealerInviteToken({
+          email: dealerUsername,
+          password: dealerPassword,
+          buyerId: buyer.id,
+        });
+        const mail = dealerInviteEmail({
+          bedrijf: buyer.bedrijf,
+          email: dealerUsername,
+          password: dealerPassword,
+          loginUrl: dealerInviteLoginUrl(token),
+        });
+        const sent = await sendEmail({
+          to,
+          subject: mail.subject,
+          text: mail.text,
+          html: mail.html,
+        });
+        if (!sent.ok) {
+          return NextResponse.json(
+            {
+              ...buyer,
+              inviteSent: false,
+              inviteError: sent.error || "Uitnodigingsmail mislukt",
+            },
+            { status: 201 },
+          );
+        }
+        inviteSent = true;
+      }
+    }
+
+    return NextResponse.json({ ...buyer, inviteSent });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Mislukt" },

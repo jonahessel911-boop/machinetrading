@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server";
 import { getDealerSession } from "@/lib/dealer-auth";
 import {
+  bidNotifyTo,
+  bidPlacedNotifyEmail,
+  sendEmail,
+} from "@/lib/email";
+import {
+  listingTitle,
   sanitizeListingForGuest,
   sanitizeListingsForGuest,
 } from "@/lib/marketplace";
 import { mpGetBySlug, mpListPublic, mpPlaceBid } from "@/lib/marketplace-data";
+
+function adminSiteUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "https://www.heftruckverkocht.nl"
+  );
+}
 
 export async function GET(request: Request) {
   const session = await getDealerSession();
@@ -59,6 +72,33 @@ export async function POST(request: Request) {
       bidderBedrijf: session.bedrijf,
       bedrag,
     });
+
+    try {
+      const mail = bidPlacedNotifyEmail({
+        source: "marketplace",
+        machineLabel: listingTitle(listing),
+        bedrag,
+        bedrijf: session.bedrijf,
+        bidderNaam: session.naam,
+        bidderEmail: session.email,
+        bidderTelefoon: session.telefoon,
+        adminUrl: listing.leadId
+          ? `${adminSiteUrl()}/admin/leads/${listing.leadId}`
+          : `${adminSiteUrl()}/admin/marketplace`,
+      });
+      const sent = await sendEmail({
+        to: bidNotifyTo(),
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      });
+      if (!sent.ok) {
+        console.error("[marketplace:bid:notify]", sent.error);
+      }
+    } catch (notifyErr) {
+      console.error("[marketplace:bid:notify]", notifyErr);
+    }
+
     return NextResponse.json(listing);
   } catch (err) {
     return NextResponse.json(

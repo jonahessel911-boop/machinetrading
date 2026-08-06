@@ -22,15 +22,26 @@ export function ShareToBuyerModal({
   onClose: () => void;
   onDone: (message: string) => void;
 }) {
+  const [mode, setMode] = useState<"list" | "email">("list");
   const [q, setQ] = useState("");
   const [buyers, setBuyers] = useState<BuyerHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [emailOverride, setEmailOverride] = useState("");
+  const [email, setEmail] = useState("");
+  const [naam, setNaam] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) return;
+    setMode("list");
+    setQ("");
+    setEmail("");
+    setNaam("");
+    setError("");
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || mode !== "list") return;
     let cancelled = false;
     setLoading(true);
     setError("");
@@ -54,17 +65,16 @@ export function ShareToBuyerModal({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [open, q]);
+  }, [open, q, mode]);
 
   if (!open) return null;
 
   async function sendTo(opts: {
     email: string;
-    toName: string;
-    buyerId?: string | null;
+    greetingName: string;
   }) {
     if (!opts.email) {
-      setError("Geen e-mailadres beschikbaar voor deze handelaar.");
+      setError("Geen e-mailadres beschikbaar.");
       return;
     }
     setBusy(true);
@@ -76,8 +86,7 @@ export function ShareToBuyerModal({
         body: JSON.stringify({
           leadId,
           email: opts.email,
-          toName: opts.toName,
-          buyerId: opts.buyerId ?? null,
+          greetingName: opts.greetingName,
         }),
       });
       const data = await res.json();
@@ -93,7 +102,7 @@ export function ShareToBuyerModal({
 
   return (
     <div className="crm-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="crm-modal">
+      <div className="crm-modal" style={{ maxWidth: 560 }}>
         <div className="crm-modal-head">
           <h2>Stuur naar handelaar</h2>
           <button type="button" className="crm-btn" onClick={onClose}>
@@ -101,77 +110,119 @@ export function ShareToBuyerModal({
           </button>
         </div>
         <div className="crm-modal-body">
-          <p className="crm-muted">
-            Top 10 kopers (meeste gekoppelde heftrucks) of zoek een handelaar.
-            Ontvanger krijgt een e-mail met de marketplace-link.
+          <p className="crm-muted" style={{ marginTop: 0 }}>
+            Ontvanger krijgt een privé-link met foto&apos;s en omschrijving —
+            geen login, geen veiling.
           </p>
-          <label className="crm-modal-label">
-            Zoeken
-            <input
-              className="crm-input"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Bedrijf, naam of e-mail…"
-              autoFocus
-            />
-          </label>
 
-          <div className="crm-modal-list">
-            {loading && <p className="crm-muted">Laden…</p>}
-            {!loading && buyers.length === 0 && (
-              <p className="crm-muted">Geen handelaren gevonden.</p>
-            )}
-            {buyers.map((b) => (
-              <div key={b.id} className="crm-modal-row">
-                <div>
-                  <strong>{b.bedrijf}</strong>
-                  <div className="crm-muted">
-                    {b.naam}
-                    {b.email ? ` · ${b.email}` : " · geen e-mail"}
-                  </div>
-                  <div className="crm-muted">{b.leadCount} gekoppelde leads</div>
-                </div>
-                <button
-                  type="button"
-                  className="crm-btn crm-btn-primary"
-                  disabled={busy || !b.email}
-                  onClick={() =>
-                    sendTo({
-                      email: b.email!,
-                      toName: b.naam,
-                      buyerId: b.id,
-                    })
-                  }
-                >
-                  Stuur
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="crm-modal-divider">Of stuur naar e-mailadres</div>
-          <div className="crm-modal-email-row">
-            <input
-              className="crm-input"
-              type="email"
-              placeholder="handelaar@bedrijf.nl"
-              value={emailOverride}
-              onChange={(e) => setEmailOverride(e.target.value)}
-            />
+          <div className="crm-actions" style={{ marginTop: 0 }}>
             <button
               type="button"
-              className="crm-btn crm-btn-primary"
-              disabled={busy || !emailOverride.trim()}
-              onClick={() =>
-                sendTo({
-                  email: emailOverride.trim(),
-                  toName: "handelaar",
-                })
-              }
+              className={`crm-btn${mode === "list" ? " crm-btn-primary" : ""}`}
+              onClick={() => setMode("list")}
+              disabled={busy}
             >
-              Verstuur
+              Kies handelaar
+            </button>
+            <button
+              type="button"
+              className={`crm-btn${mode === "email" ? " crm-btn-primary" : ""}`}
+              onClick={() => setMode("email")}
+              disabled={busy}
+            >
+              E-mail invullen
             </button>
           </div>
+
+          {mode === "list" ? (
+            <>
+              <label className="crm-modal-label">
+                Zoeken
+                <input
+                  className="crm-input"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Bedrijf, naam of e-mail…"
+                  autoFocus
+                />
+              </label>
+
+              <div className="crm-modal-list">
+                {loading && <p className="crm-muted">Laden…</p>}
+                {!loading && buyers.length === 0 && (
+                  <p className="crm-muted">Geen handelaren gevonden.</p>
+                )}
+                {buyers.map((b) => (
+                  <div key={b.id} className="crm-modal-row">
+                    <div>
+                      <strong>{b.bedrijf}</strong>
+                      <div className="crm-muted">
+                        {b.naam}
+                        {b.email ? ` · ${b.email}` : " · geen e-mail"}
+                      </div>
+                      <div className="crm-muted">
+                        {b.leadCount} gekoppelde leads
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="crm-btn crm-btn-primary"
+                      disabled={busy || !b.email}
+                      onClick={() =>
+                        sendTo({
+                          email: b.email!,
+                          greetingName: b.bedrijf || b.naam,
+                        })
+                      }
+                    >
+                      Stuur
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <form
+              className="crm-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                sendTo({
+                  email: email.trim(),
+                  greetingName: naam.trim(),
+                });
+              }}
+            >
+              <label className="crm-modal-label">
+                Naam (optioneel)
+                <input
+                  className="crm-input"
+                  value={naam}
+                  onChange={(e) => setNaam(e.target.value)}
+                  placeholder="Leeg = aanhef “Beste,”"
+                  autoFocus
+                />
+              </label>
+              <label className="crm-modal-label">
+                E-mail
+                <input
+                  className="crm-input"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="handelaar@bedrijf.nl"
+                />
+              </label>
+              <button
+                type="submit"
+                className="crm-btn crm-btn-primary"
+                disabled={busy || !email.trim()}
+              >
+                {busy ? "Versturen…" : "Verstuur link"}
+              </button>
+            </form>
+          )}
+
           {error && <p className="crm-form-error">{error}</p>}
         </div>
       </div>

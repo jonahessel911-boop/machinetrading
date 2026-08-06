@@ -8,7 +8,6 @@ import {
   useFinanceCalc,
 } from "@/components/admin/FinanceCalcFields";
 import type { Buyer, Lead } from "@/lib/mappers";
-import { SALES_REPS } from "@/lib/constants";
 import { formatEuroK } from "@/lib/status";
 
 type CompanyInfo = {
@@ -29,10 +28,12 @@ export function DealPageClient({
   initialLead,
   buyers,
   company,
+  salesReps = ["Jona"],
 }: {
   initialLead: Lead;
   buyers: Buyer[];
   company: CompanyInfo;
+  salesReps?: string[];
 }) {
   const router = useRouter();
   const [lead, setLead] = useState(initialLead);
@@ -438,15 +439,13 @@ export function DealPageClient({
                       onChange={(e) => setVerkoopmedewerker(e.target.value)}
                     >
                       <option value="">— Kies medewerker —</option>
-                      {SALES_REPS.map((name) => (
+                      {salesReps.map((name) => (
                         <option key={name} value={name}>
                           {name}
                         </option>
                       ))}
                       {verkoopmedewerker &&
-                        !(SALES_REPS as readonly string[]).includes(
-                          verkoopmedewerker,
-                        ) && (
+                        !salesReps.includes(verkoopmedewerker) && (
                           <option value={verkoopmedewerker}>
                             {verkoopmedewerker}
                           </option>
@@ -513,7 +512,7 @@ export function DealPageClient({
                 <div className="crm-fields">
                   <div className="crm-field">
                     <label>Bedrijf</label>
-                    <div>{company.legalName}</div>
+                    <div>{company.name}</div>
                   </div>
                   <div className="crm-field">
                     <label>Adres</label>
@@ -524,10 +523,8 @@ export function DealPageClient({
                     </div>
                   </div>
                   <div className="crm-field">
-                    <label>KvK / BTW</label>
-                    <div>
-                      {company.kvk} / {company.btw}
-                    </div>
+                    <label>KvK</label>
+                    <div>{company.kvk}</div>
                   </div>
                   <div className="crm-field">
                     <label>Contact</label>

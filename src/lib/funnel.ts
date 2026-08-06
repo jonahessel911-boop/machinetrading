@@ -6,6 +6,7 @@ export const FUNNEL_STEP_ORDER = [
   "brand",
   "model",
   "timing",
+  "price",
   "name",
   "loading",
   "contact",
@@ -19,6 +20,7 @@ export const FUNNEL_CR_STEPS = [
   "brand",
   "model",
   "timing",
+  "price",
   "name",
   "contact",
   "done",
@@ -28,10 +30,11 @@ export const FUNNEL_STEP_LABELS: Record<FunnelStep, string> = {
   brand: "1. Merk",
   model: "2. Model",
   timing: "3. Timing",
-  name: "4. Naam",
-  loading: "5. Laden",
-  contact: "6. Contact",
-  done: "7. Aanmelding",
+  price: "4. Richtprijs",
+  name: "5. Naam",
+  loading: "6. Laden",
+  contact: "7. Contact",
+  done: "8. Aanmelding",
 };
 
 export type FunnelStepStats = {

@@ -1,21 +1,43 @@
 import { NextResponse } from "next/server";
-import { createDealerSession } from "@/lib/dealer-auth";
-import { crmFindDealerByUsername } from "@/lib/crm";
+import {
+  crmFindDealerByUsername,
+  crmMarkDealerActivated,
+} from "@/lib/crm";
+import {
+  createDealerSession,
+  verifyDealerInviteToken,
+} from "@/lib/dealer-auth";
 import { verifyPassword } from "@/lib/password";
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const user = String(body.user ?? "").trim();
-  const pass = String(body.pass ?? "");
-
-  if (!user || !pass) {
-    return NextResponse.json(
-      { error: "Vul e-mail en wachtwoord in" },
-      { status: 400 },
-    );
-  }
+  const invite =
+    typeof body.invite === "string" ? body.invite.trim() : "";
 
   try {
+    let user = String(body.user ?? "").trim();
+    let pass = String(body.pass ?? "");
+    let justActivated = false;
+
+    if (invite) {
+      const payload = await verifyDealerInviteToken(invite);
+      if (!payload) {
+        return NextResponse.json(
+          { error: "Uitnodigingslink is ongeldig of verlopen" },
+          { status: 400 },
+        );
+      }
+      user = payload.email;
+      pass = payload.password;
+    }
+
+    if (!user || !pass) {
+      return NextResponse.json(
+        { error: "Vul e-mail en wachtwoord in" },
+        { status: 400 },
+      );
+    }
+
     const dealer = await crmFindDealerByUsername(user);
     if (
       !dealer ||
@@ -36,8 +58,11 @@ export async function POST(request: Request) {
       telefoon: dealer.telefoon,
     });
 
+    justActivated = await crmMarkDealerActivated(dealer.id);
+
     return NextResponse.json({
       ok: true,
+      justActivated,
       dealer: {
         id: dealer.id,
         naam: dealer.naam,

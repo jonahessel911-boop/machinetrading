@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { getDemoStore, isDemoMode, newId } from "@/lib/demo-store";
+import { nextPhotoSortOrder, sortPhotoRows } from "@/lib/lead-photos";
 import { mapPhoto, type LeadPhotoRow } from "@/lib/mappers";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
@@ -14,9 +15,35 @@ const ALLOWED = new Set([
   "image/webp",
   "image/heic",
   "image/heif",
+  "image/gif",
 ]);
 
-const MAX_BYTES = 8 * 1024 * 1024;
+/** Vercel request body limiet ~4.5MB */
+const MAX_BYTES = 4 * 1024 * 1024;
+
+function isImageUpload(file: Blob, name: string): boolean {
+  const type = (file.type || "").toLowerCase();
+  if (ALLOWED.has(type) || type.startsWith("image/")) return true;
+  if (!type || type === "application/octet-stream") {
+    return /\.(jpe?g|png|webp|heic|heif|gif)$/i.test(name);
+  }
+  return false;
+}
+
+function collectFiles(form: FormData): { blob: Blob; name: string }[] {
+  const out: { blob: Blob; name: string }[] = [];
+  for (const value of form.getAll("photos")) {
+    if (typeof value === "string") continue;
+    if (value instanceof Blob) {
+      const name =
+        "name" in value && typeof (value as File).name === "string"
+          ? (value as File).name
+          : "foto.jpg";
+      out.push({ blob: value, name });
+    }
+  }
+  return out;
+}
 
 /** Verklein/compresseer voor snellere admin + marketplace loads */
 async function optimizeImage(
@@ -73,9 +100,7 @@ export async function POST(request: Request, { params }: Params) {
       }
 
       const form = await request.formData();
-      const files = form
-        .getAll("photos")
-        .filter((f): f is File => f instanceof File);
+      const files = collectFiles(form);
       if (files.length === 0) {
         return NextResponse.json(
           { error: "Geen foto's ontvangen" },
@@ -84,19 +109,21 @@ export async function POST(request: Request, { params }: Params) {
       }
 
       const saved = [];
-      for (const file of files) {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const dataUrl = `data:${file.type || "image/jpeg"};base64,${buffer.toString("base64")}`;
+      for (const { blob, name } of files) {
+        const buffer = Buffer.from(await blob.arrayBuffer());
+        const dataUrl = `data:${blob.type || "image/jpeg"};base64,${buffer.toString("base64")}`;
+        const sortOrder = await nextPhotoSortOrder(id);
         const row: LeadPhotoRow = {
           id: newId("photo"),
           lead_id: id,
-          filename: file.name,
-          original_name: file.name,
-          mime_type: file.type || "image/jpeg",
-          size: file.size,
+          filename: name,
+          original_name: name,
+          mime_type: blob.type || "image/jpeg",
+          size: blob.size,
           url: dataUrl,
           storage_path: null,
           created_at: new Date().toISOString(),
+          sort_order: sortOrder,
         };
         store.photos.push(row);
         saved.push(mapPhoto(row));
@@ -117,9 +144,7 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     const form = await request.formData();
-    const files = form
-      .getAll("photos")
-      .filter((f): f is File => f instanceof File);
+    const files = collectFiles(form);
 
     if (files.length === 0) {
       return NextResponse.json(
@@ -136,29 +161,31 @@ export async function POST(request: Request, { params }: Params) {
 
     const saved = [];
 
-    for (const file of files) {
-      if (!ALLOWED.has(file.type) && !file.type.startsWith("image/")) {
+    for (const { blob, name } of files) {
+      if (!isImageUpload(blob, name)) {
         return NextResponse.json(
-          { error: `Bestandstype niet toegestaan: ${file.name}` },
+          { error: `Bestandstype niet toegestaan: ${name}` },
           { status: 400 },
         );
       }
-      if (file.size > MAX_BYTES) {
+      if (blob.size > MAX_BYTES) {
         return NextResponse.json(
-          { error: `${file.name} is groter dan 8MB` },
+          {
+            error: `${name} is te groot (max. 4MB). Maak de foto kleiner of kies een andere.`,
+          },
           { status: 400 },
         );
       }
 
-      const ext = file.name.includes(".")
-        ? `.${file.name.split(".").pop()!.toLowerCase()}`
-        : file.type.includes("png")
+      const ext = name.includes(".")
+        ? `.${name.split(".").pop()!.toLowerCase()}`
+        : blob.type.includes("png")
           ? ".png"
-          : file.type.includes("webp")
+          : blob.type.includes("webp")
             ? ".webp"
             : ".jpg";
-      const raw = Buffer.from(await file.arrayBuffer());
-      const optimized = await optimizeImage(raw, file.type || "image/jpeg");
+      const raw = Buffer.from(await blob.arrayBuffer());
+      const optimized = await optimizeImage(raw, blob.type || "image/jpeg");
       const filename = `${randomUUID()}${optimized.ext || ext}`;
       const storagePath = `leads/${id}/${filename}`;
 
@@ -189,11 +216,12 @@ export async function POST(request: Request, { params }: Params) {
         .insert({
           lead_id: id,
           filename,
-          original_name: file.name,
+          original_name: name,
           mime_type: optimized.contentType,
           size: optimized.buffer.length,
           url: publicUrl.publicUrl,
           storage_path: storagePath,
+          sort_order: await nextPhotoSortOrder(id),
         })
         .select("*")
         .single();
@@ -201,7 +229,7 @@ export async function POST(request: Request, { params }: Params) {
       if (photoError || !photo) {
         console.error(photoError);
         return NextResponse.json(
-          { error: "Foto-metadata opslaan mislukt" },
+          { error: photoError?.message || "Foto-metadata opslaan mislukt" },
           { status: 500 },
         );
       }
@@ -225,9 +253,9 @@ export async function GET(_request: Request, { params }: Params) {
   const { id } = await params;
 
   if (isDemoMode()) {
-    const photos = getDemoStore()
-      .photos.filter((p) => p.lead_id === id)
-      .map(mapPhoto);
+    const photos = sortPhotoRows(
+      getDemoStore().photos.filter((p) => p.lead_id === id),
+    ).map(mapPhoto);
     return NextResponse.json(photos);
   }
 
@@ -236,6 +264,7 @@ export async function GET(_request: Request, { params }: Params) {
     .from("lead_photos")
     .select("*")
     .eq("lead_id", id)
+    .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -243,6 +272,6 @@ export async function GET(_request: Request, { params }: Params) {
   }
 
   return NextResponse.json(
-    (data ?? []).map((row) => mapPhoto(row as LeadPhotoRow)),
+    sortPhotoRows((data ?? []) as LeadPhotoRow[]).map(mapPhoto),
   );
 }

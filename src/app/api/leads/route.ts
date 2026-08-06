@@ -1,20 +1,41 @@
 import { NextResponse } from "next/server";
 import { crmCreateLead } from "@/lib/crm";
+import { portalWelcomeEmail, sendEmail } from "@/lib/email";
 import {
   clientContextFromRequest,
   fbcFromFbclid,
   readMetaCookiesFromHeader,
   sendMetaLeadEvent,
 } from "@/lib/meta-capi";
+import {
+  createPortalToken,
+  portalMagicLinkUrl,
+} from "@/lib/portal-auth";
+import { vehicleLabel } from "@/lib/status";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { merk, model, timing, naam, email, telefoon, woonplaats } = body;
+    const { merk, model, timing, richtprijs, naam, email, telefoon, woonplaats } =
+      body;
 
     if (!merk || !timing || !naam || !email || !telefoon) {
       return NextResponse.json(
         { error: "Vul alle verplichte velden in." },
+        { status: 400 },
+      );
+    }
+
+    const parsedRichtprijs =
+      richtprijs === undefined || richtprijs === null || richtprijs === ""
+        ? null
+        : Number(richtprijs);
+    if (
+      parsedRichtprijs != null &&
+      (!Number.isFinite(parsedRichtprijs) || parsedRichtprijs <= 0)
+    ) {
+      return NextResponse.json(
+        { error: "Vul een geldige richtprijs in." },
         { status: 400 },
       );
     }
@@ -40,6 +61,7 @@ export async function POST(request: Request) {
       merk: String(merk),
       model: model ? String(model) : "Onbekend",
       timing: String(timing),
+      richtprijs: parsedRichtprijs,
       naam: String(naam).trim(),
       email: String(email).trim(),
       telefoon: String(telefoon).trim(),
@@ -91,10 +113,38 @@ export async function POST(request: Request) {
       );
     }
 
+    // Welkomstmail + portaal link — await zodat serverless de mail niet killt
+    let portalPath: string | null = null;
+    try {
+      const portalToken = await createPortalToken(lead.id, lead.email);
+      portalPath = `/mijn/${encodeURIComponent(portalToken)}`;
+      const magicUrl = portalMagicLinkUrl(portalToken);
+      const mail = portalWelcomeEmail({
+        toName: lead.naam,
+        vehicleLabel: vehicleLabel(lead.merk, lead.model),
+        magicUrl,
+      });
+      const sent = await sendEmail({
+        to: lead.email,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      });
+      console.info("[portal:welcome]", {
+        leadId: lead.id,
+        ok: sent.ok,
+        mode: sent.mode,
+        error: sent.error,
+      });
+    } catch (mailErr) {
+      console.error("[portal:welcome]", mailErr);
+    }
+
     return NextResponse.json({
       ok: true,
       id: lead.id,
       metaEventId,
+      portalUrl: portalPath,
     });
   } catch (error) {
     console.error(error);

@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
-import { MANUAL_STATUSES } from "@/lib/constants";
+import { SELECTABLE_LEAD_STATUSES } from "@/lib/constants";
 import {
+  crmDeleteLead,
   crmGetLead,
   crmGetLeadRow,
   crmUpdateLead,
 } from "@/lib/crm";
-import { statusFromAttempts } from "@/lib/status";
+import { mpSyncOmschrijvingForLead } from "@/lib/marketplace-data";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -48,23 +49,36 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if (body.action === "contact") {
       const attempts = Math.min(existing.contact_attempts + 1, 7);
+      const prevTimes = Array.isArray(existing.contact_attempt_times)
+        ? existing.contact_attempt_times.map((t) => String(t))
+        : [];
       patch.contact_attempts = attempts;
-      patch.status = statusFromAttempts(attempts);
+      patch.contact_attempt_times = [
+        ...prevTimes,
+        new Date().toISOString(),
+      ].slice(0, 7);
+      // Contactpoging is geen status — alleen teller voor eerste belrondes.
+      // Oude contact_* statuswaarden normaliseren naar nieuw.
+      // Na 7 pogingen → Geen interesse.
+      if (attempts >= 7) {
+        patch.status = "geen_interesse";
+      } else if (String(existing.status).startsWith("contact_")) {
+        patch.status = "nieuw";
+      }
     }
 
     if (body.status && typeof body.status === "string") {
-      if (
-        MANUAL_STATUSES.includes(
-          body.status as (typeof MANUAL_STATUSES)[number],
-        ) ||
-        body.status.startsWith("contact_")
-      ) {
-        patch.status = body.status;
-        if (body.status === "nieuw") patch.contact_attempts = 0;
-        if (body.status === "geen_contact") patch.contact_attempts = 7;
-        const match = /^contact_(\d)$/.exec(body.status);
-        if (match) patch.contact_attempts = Number(match[1]);
+      const allowed =
+        SELECTABLE_LEAD_STATUSES.includes(
+          body.status as (typeof SELECTABLE_LEAD_STATUSES)[number],
+        ) || /^contact_[1-7]$/.test(body.status);
+      if (!allowed) {
+        return NextResponse.json(
+          { error: `Ongeldige status: ${body.status}` },
+          { status: 400 },
+        );
       }
+      patch.status = body.status;
     }
 
     if ("inkoopprijs" in body) {
@@ -135,21 +149,61 @@ export async function PATCH(request: Request, { params }: Params) {
         : null;
     }
     if ("naam" in body) patch.naam = String(body.naam).trim();
-    if ("email" in body) patch.email = String(body.email).trim();
+    if ("email" in body) patch.email = String(body.email).trim().toLowerCase();
     if ("telefoon" in body) patch.telefoon = String(body.telefoon).trim();
     if ("merk" in body) patch.merk = String(body.merk).trim();
     if ("model" in body)
       patch.model = body.model ? String(body.model).trim() : null;
     if ("timing" in body) patch.timing = String(body.timing).trim();
+    if ("omschrijving" in body) {
+      patch.omschrijving = body.omschrijving
+        ? String(body.omschrijving).trim().slice(0, 2000)
+        : null;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json(
+        { error: "Geen wijzigingen om op te slaan" },
+        { status: 400 },
+      );
+    }
 
     const lead = await crmUpdateLead(id, patch);
     if (!lead) {
       return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
     }
+    if ("omschrijving" in patch) {
+      await mpSyncOmschrijvingForLead(
+        id,
+        (patch.omschrijving as string | null) ?? null,
+      );
+    }
     return NextResponse.json(lead);
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Fout";
+    const friendly = /leads_status_check|check constraint/i.test(message)
+      ? "Status niet toegestaan in de database. Draai migratie 025_status_onrealistische_prijs.sql in Supabase."
+      : message;
+    return NextResponse.json({ error: friendly }, { status: 500 });
+  }
+}
+
+export async function DELETE(_request: Request, { params }: Params) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  try {
+    const existing = await crmGetLeadRow(id);
+    if (!existing) {
+      return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
+    }
+    await crmDeleteLead(id);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Fout" },
+      { error: err instanceof Error ? err.message : "Verwijderen mislukt" },
       { status: 500 },
     );
   }

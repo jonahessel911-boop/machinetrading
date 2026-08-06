@@ -39,6 +39,11 @@ async function expireStaleSupabase(): Promise<void> {
 function photosForLead(leadId: string) {
   return getDemoStore()
     .photos.filter((p) => p.lead_id === leadId)
+    .sort(
+      (a, b) =>
+        Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0) ||
+        a.created_at.localeCompare(b.created_at),
+    )
     .map(mapPhoto);
 }
 
@@ -86,6 +91,59 @@ export async function mpListPublic(): Promise<MarketplaceListing[]> {
   return Promise.all(listings.map((row) => mpHydrateListing(row)));
 }
 
+/** YYYY-MM-DD in Europe/Amsterdam */
+export function amsterdamDateKey(d = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Amsterdam",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+/**
+ * Actieve listings waarvan starts_at (publicatietijd) op de gegeven
+ * Amsterdam-kalenderdag valt. Gebruikt voor "Aanbod van de dag".
+ */
+export async function mpListPublishedOnAmsterdamDay(
+  dayKey = amsterdamDateKey(),
+): Promise<MarketplaceListing[]> {
+  const since = new Date(Date.now() - 40 * 60 * 60 * 1000).toISOString();
+
+  if (isDemoMode()) {
+    const store = getDemoStore();
+    expireStale(store.listings);
+    return store.listings
+      .filter(
+        (l) =>
+          isListingLive(l) &&
+          amsterdamDateKey(new Date(l.starts_at)) === dayKey &&
+          l.starts_at >= since,
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime(),
+      )
+      .map(enrichDemo);
+  }
+
+  await expireStaleSupabase();
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("marketplace_listings")
+    .select("*")
+    .eq("status", "actief")
+    .gt("ends_at", new Date().toISOString())
+    .gte("starts_at", since)
+    .order("starts_at", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  const rows = ((data ?? []) as MarketplaceListingRow[]).filter(
+    (l) => amsterdamDateKey(new Date(l.starts_at)) === dayKey,
+  );
+  return Promise.all(rows.map((row) => mpHydrateListing(row)));
+}
+
 export async function mpListAllAdmin(): Promise<MarketplaceListing[]> {
   if (isDemoMode()) {
     const store = getDemoStore();
@@ -124,6 +182,7 @@ async function mpHydrateListing(
       .from("lead_photos")
       .select("*")
       .eq("lead_id", row.lead_id)
+      .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true }),
     supabase
       .from("marketplace_bids")
@@ -135,7 +194,12 @@ async function mpHydrateListing(
   const bidRows = (bids ?? []) as MarketplaceBidRow[];
   const mappedBids = bidRows.map(mapBid);
   return mapListing(row, {
-    photos: ((photos ?? []) as LeadPhotoRow[]).map(mapPhoto),
+    photos: ((photos ?? []) as LeadPhotoRow[])
+      .map(mapPhoto)
+      .sort(
+        (a, b) =>
+          a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt),
+      ),
     bids: mappedBids,
     bidCount: mappedBids.length,
     highestBid: mappedBids[0]?.bedrag ?? null,
@@ -198,6 +262,39 @@ export async function mpGetByLeadId(
   return mpHydrateListing(data as MarketplaceListingRow);
 }
 
+/** Lead-ids met een actieve (live) marketplace-veiling. */
+export async function mpLiveLeadIds(
+  leadIds: string[],
+): Promise<Set<string>> {
+  const ids = [...new Set(leadIds.filter(Boolean))];
+  if (ids.length === 0) return new Set();
+
+  if (isDemoMode()) {
+    const store = getDemoStore();
+    expireStale(store.listings);
+    const live = new Set<string>();
+    for (const l of store.listings) {
+      if (ids.includes(l.lead_id) && isListingLive(l)) {
+        live.add(l.lead_id);
+      }
+    }
+    return live;
+  }
+
+  await expireStaleSupabase();
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("marketplace_listings")
+    .select("lead_id, status, ends_at")
+    .in("lead_id", ids)
+    .eq("status", "actief")
+    .gt("ends_at", new Date().toISOString());
+  if (error) throw new Error(error.message);
+  return new Set(
+    ((data ?? []) as { lead_id: string }[]).map((r) => r.lead_id),
+  );
+}
+
 export async function mpPublishLead(input: {
   leadId: string;
   omschrijving?: string | null;
@@ -220,7 +317,10 @@ export async function mpPublishLead(input: {
       id: newId("listing"),
       lead_id: lead.id,
       slug: makeListingSlug(),
-      omschrijving: input.omschrijving?.trim() || null,
+      omschrijving:
+        input.omschrijving?.trim() ||
+        (lead as { omschrijving?: string | null }).omschrijving?.trim() ||
+        null,
       woonplaats: lead.woonplaats,
       merk: lead.merk,
       model: lead.model,
@@ -254,7 +354,10 @@ export async function mpPublishLead(input: {
     .insert({
       lead_id: input.leadId,
       slug: makeListingSlug(),
-      omschrijving: input.omschrijving?.trim() || null,
+      omschrijving:
+        input.omschrijving?.trim() ||
+        (lead as { omschrijving?: string | null }).omschrijving?.trim() ||
+        null,
       woonplaats: lead.woonplaats,
       merk: lead.merk,
       model: lead.model,
@@ -267,6 +370,45 @@ export async function mpPublishLead(input: {
 
   if (error || !data) throw new Error(error?.message ?? "Publiceren mislukt");
   return mpHydrateListing(data as MarketplaceListingRow);
+}
+
+/** Sync omschrijving op de meest recente listing van een lead (indien aanwezig). */
+export async function mpSyncOmschrijvingForLead(
+  leadId: string,
+  omschrijving: string | null,
+): Promise<void> {
+  const text = omschrijving?.trim() || null;
+
+  if (isDemoMode()) {
+    const store = getDemoStore();
+    const listing = store.listings.find((l) => l.lead_id === leadId);
+    if (listing) {
+      listing.omschrijving = text;
+      listing.updated_at = new Date().toISOString();
+    }
+    return;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase
+    .from("marketplace_listings")
+    .select("id")
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data?.id) return;
+
+  const { error } = await supabase
+    .from("marketplace_listings")
+    .update({
+      omschrijving: text,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", data.id);
+
+  if (error) throw new Error(error.message);
 }
 
 export async function mpRepublish(listingId: string): Promise<MarketplaceListing> {

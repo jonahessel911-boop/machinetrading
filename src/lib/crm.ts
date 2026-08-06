@@ -14,9 +14,40 @@ import {
   newId,
   type DemoStore,
 } from "./demo-store";
+import { crmHighestBidsByLeadIds } from "./lead-bids";
 import { getSupabaseAdmin } from "./supabase";
 
 export { isDemoMode };
+
+/** Bel-systeem: alleen status Nieuw, gesorteerd op belprioriteit. */
+export function sortCallQueue(leads: Lead[]): Lead[] {
+  function lastContactMs(lead: Lead): number {
+    const times = lead.contactAttemptTimes ?? [];
+    if (times.length === 0) return 0;
+    return Math.max(...times.map((t) => new Date(t).getTime()));
+  }
+
+  return [...leads]
+    .filter((l) => l.status === "nieuw")
+    .sort((a, b) => {
+      if (a.contactAttempts !== b.contactAttempts) {
+        return a.contactAttempts - b.contactAttempts;
+      }
+      // 0 pogingen: nieuwste aanmelding eerst
+      if (a.contactAttempts === 0) {
+        return (
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      }
+      // Al gebeld: langst geleden gebeld eerst
+      return lastContactMs(a) - lastContactMs(b);
+    });
+}
+
+export async function crmListCallQueue(): Promise<Lead[]> {
+  const leads = await crmListLeads({ status: "nieuw" });
+  return sortCallQueue(leads);
+}
 
 type LeadFull = LeadRow & {
   buyer?: BuyerRow | null;
@@ -28,7 +59,13 @@ function hydrateLead(store: DemoStore, lead: LeadRow): LeadFull {
   const buyer = lead.buyer_id
     ? store.buyers.find((b) => b.id === lead.buyer_id) ?? null
     : null;
-  const photos = store.photos.filter((p) => p.lead_id === lead.id);
+  const photos = store.photos
+    .filter((p) => p.lead_id === lead.id)
+    .sort(
+      (a, b) =>
+        Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0) ||
+        a.created_at.localeCompare(b.created_at),
+    );
   const contracts = store.contracts
     .filter((c) => c.lead_id === lead.id)
     .map((c) => ({
@@ -78,13 +115,22 @@ export async function crmListLeads(
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
     if (filters.limit) rows = rows.slice(0, filters.limit);
-    return rows.map((l) => mapLead(hydrateLead(store, l)));
+    const leads = rows.map((l) => mapLead(hydrateLead(store, l)));
+    const highest = await crmHighestBidsByLeadIds(leads.map((l) => l.id));
+    return leads.map((lead) => {
+      const h = highest.get(lead.id);
+      return {
+        ...lead,
+        highestBid: h?.bedrag ?? null,
+        highestBidBidder: h?.bidderLabel ?? null,
+      };
+    });
   }
 
   const supabase = getSupabaseAdmin();
   let query = supabase
     .from("leads")
-    .select("*, buyer:buyers(*), photos:lead_photos(id)")
+    .select("*, buyer:buyers(*), photos:lead_photos(*)")
     .order("created_at", { ascending: false });
 
   if (filters.status) query = query.eq("status", filters.status);
@@ -100,7 +146,16 @@ export async function crmListLeads(
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return (data ?? []).map((row) => mapLead(row as LeadFull));
+  const leads = (data ?? []).map((row) => mapLead(row as LeadFull));
+  const highest = await crmHighestBidsByLeadIds(leads.map((l) => l.id));
+  return leads.map((lead) => {
+    const h = highest.get(lead.id);
+    return {
+      ...lead,
+      highestBid: h?.bedrag ?? null,
+      highestBidBidder: h?.bidderLabel ?? null,
+    };
+  });
 }
 
 export async function crmGetLead(id: string): Promise<Lead | null> {
@@ -123,6 +178,40 @@ export async function crmGetLead(id: string): Promise<Lead | null> {
   if (error) throw new Error(error.message);
   if (!data) return null;
   return mapLead(data as LeadFull);
+}
+
+/** Leads op e-mail (nieuwste eerst), voor portaal magic link. */
+export async function crmFindLeadsByEmail(
+  email: string,
+  limit = 5,
+): Promise<Lead[]> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return [];
+
+  if (isDemoMode()) {
+    const store = getDemoStore();
+    return store.leads
+      .filter((l) => l.email.trim().toLowerCase() === normalized)
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .slice(0, limit)
+      .map((l) => mapLead(hydrateLead(store, l)));
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("leads")
+    .select(
+      "*, buyer:buyers(*), photos:lead_photos(*), contracts:contracts(*, buyer:buyers(*))",
+    )
+    .ilike("email", normalized)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => mapLead(row as LeadFull));
 }
 
 export async function crmUpdateLead(
@@ -150,6 +239,44 @@ export async function crmUpdateLead(
   return crmGetLead(id);
 }
 
+export async function crmDeleteLead(id: string): Promise<void> {
+  if (isDemoMode()) {
+    const store = getDemoStore();
+    const listingIds = new Set(
+      store.listings.filter((l) => l.lead_id === id).map((l) => l.id),
+    );
+    store.bids = store.bids.filter((b) => !listingIds.has(b.listing_id));
+    store.shares = store.shares.filter((s) => !listingIds.has(s.listing_id));
+    store.listings = store.listings.filter((l) => l.lead_id !== id);
+    store.photos = store.photos.filter((p) => p.lead_id !== id);
+    store.contracts = store.contracts.filter((c) => c.lead_id !== id);
+    store.messages = store.messages.filter((m) => m.lead_id !== id);
+    for (const inv of store.invoices) {
+      if (inv.lead_id === id) inv.lead_id = null;
+    }
+    store.leads = store.leads.filter((l) => l.id !== id);
+    return;
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  const { data: photos } = await supabase
+    .from("lead_photos")
+    .select("storage_path")
+    .eq("lead_id", id);
+
+  const paths = (photos ?? [])
+    .map((p) => p.storage_path as string | null)
+    .filter((p): p is string => Boolean(p));
+
+  if (paths.length > 0) {
+    await supabase.storage.from("lead-photos").remove(paths);
+  }
+
+  const { error } = await supabase.from("leads").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export async function crmCreateLead(
   input: Partial<LeadRow> & {
     merk: string;
@@ -168,6 +295,10 @@ export async function crmCreateLead(
       merk: input.merk,
       model: input.model ?? "Onbekend",
       timing: input.timing,
+      richtprijs:
+        input.richtprijs == null || !Number.isFinite(Number(input.richtprijs))
+          ? null
+          : Number(input.richtprijs),
       naam: input.naam,
       email: input.email,
       telefoon: input.telefoon,
@@ -178,6 +309,7 @@ export async function crmCreateLead(
       woonplaats: input.woonplaats,
       status: "nieuw",
       contact_attempts: 0,
+      contact_attempt_times: [],
       inkoopprijs: null,
       marge: null,
       verkoopprijs: null,
@@ -188,6 +320,7 @@ export async function crmCreateLead(
       meta_fbp: input.meta_fbp ?? null,
       meta_fbc: input.meta_fbc ?? null,
       meta_fbclid: input.meta_fbclid ?? null,
+      omschrijving: input.omschrijving ?? null,
       buyer_id: null,
       created_at: now,
       updated_at: now,
@@ -203,6 +336,10 @@ export async function crmCreateLead(
       merk: input.merk,
       model: input.model ?? "Onbekend",
       timing: input.timing,
+      richtprijs:
+        input.richtprijs == null || !Number.isFinite(Number(input.richtprijs))
+          ? null
+          : Number(input.richtprijs),
       naam: input.naam,
       email: input.email,
       telefoon: input.telefoon,
@@ -274,6 +411,25 @@ export async function crmListBuyersSimple(): Promise<Buyer[]> {
   return (data ?? []).map((b) => mapBuyer(b as BuyerRow));
 }
 
+/** Kopers die de dagelijkse marketplace-digest ontvangen (met e-mail). */
+export async function crmListDailyDigestBuyers(): Promise<Buyer[]> {
+  if (isDemoMode()) {
+    return getDemoStore()
+      .buyers.filter((b) => b.daily_digest && (b.email || b.dealer_username))
+      .map(mapBuyer);
+  }
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("buyers")
+    .select("*")
+    .eq("daily_digest", true)
+    .order("bedrijf", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .map((b) => mapBuyer(b as BuyerRow))
+    .filter((b) => Boolean(b.email?.trim() || b.dealerUsername?.trim()));
+}
+
 export async function crmCreateBuyer(input: {
   naam: string;
   bedrijf: string;
@@ -341,6 +497,8 @@ export async function crmCreateBuyer(input: {
       dealer_username: username,
       dealer_password_hash: passwordHash,
       dealer_enabled: enabled,
+      dealer_activated_at: null,
+      daily_digest: false,
       created_at: now,
       updated_at: now,
       ...invoiceCols,
@@ -360,6 +518,7 @@ export async function crmCreateBuyer(input: {
       dealer_username: username,
       dealer_password_hash: passwordHash,
       dealer_enabled: enabled,
+      dealer_activated_at: null,
       ...invoiceCols,
     })
     .select("*")
@@ -421,6 +580,39 @@ export async function crmUpdateBuyer(
     .single();
   if (error || !data) throw new Error(error?.message ?? "Mislukt");
   return mapBuyer(data as BuyerRow);
+}
+
+/** Zet dealer_activated_at als die nog leeg is. True = net geactiveerd. */
+export async function crmMarkDealerActivated(
+  buyerId: string,
+): Promise<boolean> {
+  if (isDemoMode()) {
+    const store = getDemoStore();
+    const buyer = store.buyers.find((b) => b.id === buyerId);
+    if (!buyer) return false;
+    if (buyer.dealer_activated_at) return false;
+    buyer.dealer_activated_at = new Date().toISOString();
+    buyer.updated_at = buyer.dealer_activated_at;
+    return true;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data: existing, error: readErr } = await supabase
+    .from("buyers")
+    .select("dealer_activated_at")
+    .eq("id", buyerId)
+    .maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  if (!existing || existing.dealer_activated_at) return false;
+
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("buyers")
+    .update({ dealer_activated_at: now, updated_at: now })
+    .eq("id", buyerId)
+    .is("dealer_activated_at", null);
+  if (error) throw new Error(error.message);
+  return true;
 }
 
 export async function crmDeleteBuyer(id: string): Promise<void> {

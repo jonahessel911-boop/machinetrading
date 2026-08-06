@@ -44,12 +44,13 @@ export default function AdminLoginPage() {
           style={{ marginTop: "1.25rem" }}
         >
           <label>
-            Gebruikersnaam
+            E-mail (@heftruckverkocht.nl)
             <input
               className="crm-input"
               value={user}
               onChange={(e) => setUser(e.target.value)}
               autoComplete="username"
+              placeholder="naam@heftruckverkocht.nl"
             />
           </label>
           <label>

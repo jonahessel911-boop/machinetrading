@@ -214,3 +214,62 @@ export async function PUT(request: Request, { params }: Params) {
     );
   }
 }
+
+export async function DELETE(_request: Request, { params }: Params) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id: leadId, photoId } = await params;
+
+  try {
+    if (isDemoMode()) {
+      const store = getDemoStore();
+      const idx = store.photos.findIndex(
+        (p) => p.id === photoId && p.lead_id === leadId,
+      );
+      if (idx < 0) {
+        return NextResponse.json({ error: "Foto niet gevonden" }, { status: 404 });
+      }
+      store.photos.splice(idx, 1);
+      return NextResponse.json({ ok: true });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const { data: existing, error } = await supabase
+      .from("lead_photos")
+      .select("*")
+      .eq("id", photoId)
+      .eq("lead_id", leadId)
+      .maybeSingle();
+
+    if (error || !existing) {
+      return NextResponse.json({ error: "Foto niet gevonden" }, { status: 404 });
+    }
+
+    const { error: deleteError } = await supabase
+      .from("lead_photos")
+      .delete()
+      .eq("id", photoId)
+      .eq("lead_id", leadId);
+
+    if (deleteError) {
+      return NextResponse.json(
+        { error: deleteError.message || "Verwijderen mislukt" },
+        { status: 500 },
+      );
+    }
+
+    if (existing.storage_path) {
+      void supabase.storage.from("lead-photos").remove([existing.storage_path]);
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Verwijderen mislukt" },
+      { status: 500 },
+    );
+  }
+}
