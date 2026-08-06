@@ -184,7 +184,7 @@ export async function PATCH(request: Request, { params }: Params) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Fout";
     const friendly = /leads_status_check|check constraint/i.test(message)
-      ? "Status niet toegestaan in de database. Draai migratie 025_status_onrealistische_prijs.sql in Supabase."
+      ? "Status niet toegestaan in de database. Draai migratie 031_status_koper_zoeken.sql in Supabase (drop constraint → update → nieuwe check met koper_zoeken)."
       : message;
     return NextResponse.json({ error: friendly }, { status: 500 });
   }
