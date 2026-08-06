@@ -262,7 +262,7 @@ export function LeadDetailClient({
             disabled={busy}
             onClick={() => setShareOpen(true)}
           >
-            Stuur naar handelaar
+            Deel naar handelaar
           </button>
           <Link
             href={`/admin/leads/${lead.id}/deal`}
@@ -830,7 +830,7 @@ export function LeadDetailClient({
                     disabled={busy}
                     onClick={() => setShareOpen(true)}
                   >
-                    Stuur naar handelaar
+                    Deel naar handelaar
                   </button>
                 </div>
                 {listing && (

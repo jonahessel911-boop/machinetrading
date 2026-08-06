@@ -11,6 +11,28 @@ type BuyerHit = {
   leadCount: number;
 };
 
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const el = document.createElement("textarea");
+      el.value = text;
+      el.setAttribute("readonly", "");
+      el.style.position = "fixed";
+      el.style.left = "-9999px";
+      document.body.appendChild(el);
+      el.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(el);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
 export function ShareToBuyerModal({
   leadId,
   omschrijving = "",
@@ -30,9 +52,12 @@ export function ShareToBuyerModal({
   const [buyers, setBuyers] = useState<BuyerHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [linkBusy, setLinkBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [naam, setNaam] = useState("");
   const [error, setError] = useState("");
+  const [shareUrl, setShareUrl] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -41,6 +66,8 @@ export function ShareToBuyerModal({
     setEmail("");
     setNaam("");
     setError("");
+    setShareUrl("");
+    setCopied(false);
   }, [open]);
 
   useEffect(() => {
@@ -71,6 +98,41 @@ export function ShareToBuyerModal({
   }, [open, q, mode]);
 
   if (!open) return null;
+
+  async function createShareLink(): Promise<string> {
+    const res = await fetch("/api/admin/marketplace/share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        leadId,
+        linkOnly: true,
+        omschrijving,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Link maken mislukt");
+    const url = String(data.url ?? "");
+    if (!url) throw new Error("Geen link ontvangen");
+    return url;
+  }
+
+  async function copyShareLink() {
+    setLinkBusy(true);
+    setError("");
+    setCopied(false);
+    try {
+      const url = shareUrl || (await createShareLink());
+      setShareUrl(url);
+      const ok = await copyText(url);
+      if (!ok) throw new Error("Kopiëren mislukt — selecteer de link handmatig");
+      setCopied(true);
+      onDone("Preview-link gekopieerd — plak in WhatsApp of ergens anders");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fout");
+    } finally {
+      setLinkBusy(false);
+    }
+  }
 
   async function sendTo(opts: {
     email: string;
@@ -108,16 +170,16 @@ export function ShareToBuyerModal({
     <div className="crm-modal-backdrop" role="dialog" aria-modal="true">
       <div className="crm-modal" style={{ maxWidth: 560 }}>
         <div className="crm-modal-head">
-          <h2>Stuur naar handelaar</h2>
+          <h2>Deel naar handelaar</h2>
           <button type="button" className="crm-btn" onClick={onClose}>
             Sluiten
           </button>
         </div>
         <div className="crm-modal-body">
           <p className="crm-muted" style={{ marginTop: 0 }}>
-            Ontvanger krijgt een privé-link met foto&apos;s
+            Privé-link met foto&apos;s
             {omschrijving.trim() ? " en jouw omschrijving" : " en omschrijving"}{" "}
-            — geen login, geen veiling.
+            — geen login, geen veiling. Handig voor WhatsApp.
           </p>
           {omschrijving.trim() ? (
             <div
@@ -145,12 +207,82 @@ export function ShareToBuyerModal({
             </p>
           )}
 
+          <div
+            style={{
+              marginBottom: "1rem",
+              padding: "0.85rem 0.9rem",
+              border: "1px solid #e5e7eb",
+              borderRadius: 10,
+              background: "#fff",
+            }}
+          >
+            <strong style={{ display: "block", marginBottom: 6 }}>
+              Alleen link (WhatsApp e.d.)
+            </strong>
+            <p className="crm-muted" style={{ margin: "0 0 0.75rem" }}>
+              Maak een preview-link zonder e-mail te versturen.
+            </p>
+            <button
+              type="button"
+              className="crm-btn crm-btn-primary"
+              disabled={linkBusy || busy}
+              onClick={copyShareLink}
+            >
+              {linkBusy
+                ? "Link maken…"
+                : copied
+                  ? "Gekopieerd ✓"
+                  : "Kopieer preview-link"}
+            </button>
+            {shareUrl ? (
+              <div style={{ marginTop: "0.75rem" }}>
+                <input
+                  className="crm-input"
+                  readOnly
+                  value={shareUrl}
+                  onFocus={(e) => e.currentTarget.select()}
+                  aria-label="Preview-link"
+                />
+                <div className="crm-actions" style={{ marginTop: "0.5rem" }}>
+                  <button
+                    type="button"
+                    className="crm-btn"
+                    disabled={linkBusy}
+                    onClick={copyShareLink}
+                  >
+                    Opnieuw kopiëren
+                  </button>
+                  <a
+                    className="crm-btn"
+                    href={shareUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open preview
+                  </a>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div
+            className="crm-muted"
+            style={{
+              margin: "0 0 0.75rem",
+              fontSize: "0.85rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
+            Of verstuur per e-mail
+          </div>
+
           <div className="crm-actions" style={{ marginTop: 0 }}>
             <button
               type="button"
               className={`crm-btn${mode === "list" ? " crm-btn-primary" : ""}`}
               onClick={() => setMode("list")}
-              disabled={busy}
+              disabled={busy || linkBusy}
             >
               Kies handelaar
             </button>
@@ -158,7 +290,7 @@ export function ShareToBuyerModal({
               type="button"
               className={`crm-btn${mode === "email" ? " crm-btn-primary" : ""}`}
               onClick={() => setMode("email")}
-              disabled={busy}
+              disabled={busy || linkBusy}
             >
               E-mail invullen
             </button>
@@ -197,7 +329,7 @@ export function ShareToBuyerModal({
                     <button
                       type="button"
                       className="crm-btn crm-btn-primary"
-                      disabled={busy || !b.email}
+                      disabled={busy || linkBusy || !b.email}
                       onClick={() =>
                         sendTo({
                           email: b.email!,
@@ -246,7 +378,7 @@ export function ShareToBuyerModal({
               <button
                 type="submit"
                 className="crm-btn crm-btn-primary"
-                disabled={busy || !email.trim()}
+                disabled={busy || linkBusy || !email.trim()}
               >
                 {busy ? "Versturen…" : "Verstuur link"}
               </button>

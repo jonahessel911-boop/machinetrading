@@ -38,12 +38,16 @@ export async function POST(request: Request) {
   const leadId = String(body.leadId ?? "");
   const email = String(body.email ?? "").trim();
   const greetingName = String(body.greetingName ?? body.toName ?? "").trim();
+  const linkOnly = Boolean(body.linkOnly);
   const omschrijvingFromForm =
     typeof body.omschrijving === "string"
       ? body.omschrijving.trim().slice(0, 2000)
       : null;
 
-  if (!leadId || !email || !email.includes("@")) {
+  if (!leadId) {
+    return NextResponse.json({ error: "leadId is verplicht" }, { status: 400 });
+  }
+  if (!linkOnly && (!email || !email.includes("@"))) {
     return NextResponse.json(
       { error: "leadId en geldig e-mailadres zijn verplicht" },
       { status: 400 },
@@ -70,6 +74,15 @@ export async function POST(request: Request) {
 
     const token = await createLeadShareToken(lead.id);
     const url = leadShareUrl(token);
+
+    if (linkOnly) {
+      return NextResponse.json({
+        ok: true,
+        url,
+        message: "Preview-link klaar om te kopiëren",
+      });
+    }
+
     const label = vehicleLabel(lead.merk, lead.model);
 
     const mail = dealerDirectShareEmail({
