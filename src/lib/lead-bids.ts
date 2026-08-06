@@ -527,17 +527,16 @@ export async function crmListBidsForBuyer(input: {
     };
 
     // Marketplace-biedingen via e-mail (case-insensitive) of bedrijfsnaam
-    const mpQueryParts: Promise<{
+    const mpResults: Array<{
       data: unknown;
       error: { message: string } | null;
-    }>[] = [];
+    }> = [];
     if (emails.length > 0) {
-      // PostgREST: or(bidder_email.ilike.a,bidder_email.ilike.b)
       const emailOr = emails
         .map((e) => `bidder_email.ilike."${e.replace(/"/g, "")}"`)
         .join(",");
-      mpQueryParts.push(
-        supabase
+      mpResults.push(
+        await supabase
           .from("marketplace_bids")
           .select("*")
           .or(emailOr)
@@ -545,8 +544,8 @@ export async function crmListBidsForBuyer(input: {
       );
     }
     if (bedrijfKey) {
-      mpQueryParts.push(
-        supabase
+      mpResults.push(
+        await supabase
           .from("marketplace_bids")
           .select("*")
           .ilike("bidder_bedrijf", input.bedrijf!.trim())
@@ -554,8 +553,7 @@ export async function crmListBidsForBuyer(input: {
       );
     }
 
-    if (mpQueryParts.length > 0) {
-      const mpResults = await Promise.all(mpQueryParts);
+    if (mpResults.length > 0) {
       const mpById = new Map<string, Record<string, unknown>>();
       for (const res of mpResults) {
         if (res.error) {
