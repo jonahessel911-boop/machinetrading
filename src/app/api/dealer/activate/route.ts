@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import {
   crmGetBuyerRow,
   crmMarkDealerActivated,
+  crmTouchDealerLastLogin,
   crmUpdateBuyer,
 } from "@/lib/crm";
 import {
   createDealerSession,
+  dealerLoginUrl,
   verifyDealerInviteToken,
 } from "@/lib/dealer-auth";
+import { dealerActivatedEmail, sendEmail } from "@/lib/email";
 import { hashPassword } from "@/lib/password";
 
 /** Onboarding: wachtwoord zetten + sessie starten. */
@@ -91,6 +94,28 @@ export async function POST(request: Request) {
     });
 
     const justActivated = await crmMarkDealerActivated(updated.id);
+    await crmTouchDealerLastLogin(updated.id);
+
+    try {
+      const mail = dealerActivatedEmail({
+        bedrijf: updated.bedrijf,
+        email,
+        password,
+        loginUrl: dealerLoginUrl(),
+      });
+      const to = (updated.email || email).trim();
+      const sent = await sendEmail({
+        to,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      });
+      if (!sent.ok) {
+        console.error("[dealer:activated:mail]", sent.error);
+      }
+    } catch (mailErr) {
+      console.error("[dealer:activated:mail]", mailErr);
+    }
 
     return NextResponse.json({
       ok: true,

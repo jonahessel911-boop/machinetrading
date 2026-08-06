@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   crmFindDealerByUsername,
   crmMarkDealerActivated,
+  crmTouchDealerLastLogin,
 } from "@/lib/crm";
 import {
   createDealerSession,
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
     });
 
     justActivated = await crmMarkDealerActivated(dealer.id);
+    await crmTouchDealerLastLogin(dealer.id);
 
     return NextResponse.json({
       ok: true,

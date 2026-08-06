@@ -11,7 +11,7 @@ import {
   rangeForPreset,
   type PeriodPreset,
 } from "@/lib/periods";
-import { formatEuro, formatEuroK } from "@/lib/status";
+import { formatDateTime, formatEuro, formatEuroK } from "@/lib/status";
 import type { KvkCompanyProfile } from "@/lib/kvk";
 
 type BuyerForm = {
@@ -24,6 +24,7 @@ type BuyerForm = {
   dealerEnabled: boolean;
   hasDealerPassword: boolean;
   dealerActivatedAt: string | null;
+  dealerLastLoginAt: string | null;
   dailyDigest?: boolean;
 };
 
@@ -213,6 +214,7 @@ export function KopersClient({
               <tr>
                 <th>Bedrijfsnaam</th>
                 <th>Account</th>
+                <th>Laatste login</th>
                 <th>Deals</th>
                 <th>Bem. Vol</th>
                 <th>Omzet</th>
@@ -253,6 +255,11 @@ export function KopersClient({
                         </div>
                       ) : null}
                     </td>
+                    <td>
+                      {buyer?.dealerLastLoginAt
+                        ? formatDateTime(buyer.dealerLastLoginAt)
+                        : "—"}
+                    </td>
                     <td>{r.deals}</td>
                     <td>{formatEuroK(r.waardeDeals)}</td>
                     <td>{formatEuroK(r.omzet)}</td>
@@ -262,7 +269,7 @@ export function KopersClient({
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6}>Nog geen kopers.</td>
+                  <td colSpan={7}>Nog geen kopers.</td>
                 </tr>
               )}
             </tbody>

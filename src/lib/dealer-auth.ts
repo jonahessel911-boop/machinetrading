@@ -121,6 +121,50 @@ export function dealerInviteLoginUrl(token: string): string {
   return `${dealerSiteUrl()}/dealer/onboarding?invite=${encodeURIComponent(token)}`;
 }
 
+export function dealerLoginUrl(): string {
+  return `${dealerSiteUrl()}/dealer/login`;
+}
+
+export function dealerResetPasswordUrl(token: string): string {
+  return `${dealerSiteUrl()}/dealer/reset?token=${encodeURIComponent(token)}`;
+}
+
+export async function createDealerResetToken(opts: {
+  email: string;
+  buyerId: string;
+}): Promise<string> {
+  return new SignJWT({
+    role: "dealer_reset",
+    email: opts.email.trim().toLowerCase(),
+    buyerId: opts.buyerId,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("2h")
+    .sign(getSecret());
+}
+
+export async function verifyDealerResetToken(
+  token: string,
+): Promise<{ email: string; buyerId: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, getSecret());
+    if (
+      payload.role !== "dealer_reset" ||
+      !payload.email ||
+      !payload.buyerId
+    ) {
+      return null;
+    }
+    return {
+      email: String(payload.email).toLowerCase(),
+      buyerId: String(payload.buyerId),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function requireDealer(): Promise<DealerSession> {
   const session = await getDealerSession();
   if (!session) throw new Error("Unauthorized");

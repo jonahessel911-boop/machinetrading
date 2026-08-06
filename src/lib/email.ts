@@ -810,3 +810,84 @@ export function dealerInviteEmail(opts: {
 
   return { subject, text, html };
 }
+
+export function dealerActivatedEmail(opts: {
+  bedrijf: string;
+  email: string;
+  password: string;
+  loginUrl: string;
+}): { subject: string; text: string; html: string } {
+  const company = getCompanyInfo();
+  const subject = `Gefeliciteerd — je account is geactiveerd | ${company.name}`;
+  const text = [
+    `Beste ${opts.bedrijf},`,
+    "",
+    "Gefeliciteerd! Je account is geactiveerd.",
+    "",
+    "Inloggegevens",
+    `E-mail: ${opts.email}`,
+    `Wachtwoord: ${opts.password}`,
+    "",
+    "Om in te loggen:",
+    opts.loginUrl,
+    "",
+    "Bewaar deze gegevens goed. Je kunt je wachtwoord later wijzigen via ‘Wachtwoord vergeten’ op de inlogpagina.",
+    "",
+    emailSignOffText(company),
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:Segoe UI,sans-serif;color:#181818;line-height:1.5">
+      <p>Beste ${escapeHtml(opts.bedrijf)},</p>
+      <p><strong>Gefeliciteerd!</strong> Je account is geactiveerd.</p>
+      <p style="margin:1.1rem 0 0.35rem;font-weight:800">Inloggegevens</p>
+      <p style="margin:0">
+        <strong>E-mail:</strong> ${escapeHtml(opts.email)}<br/>
+        <strong>Wachtwoord:</strong> ${escapeHtml(opts.password)}
+      </p>
+      <p style="margin:1.1rem 0 0.75rem">Om in te loggen:</p>
+      <p><a href="${escapeHtml(opts.loginUrl)}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Naar marketplace login</a></p>
+      <p style="color:#514f4d;font-size:14px">Bewaar deze gegevens goed. Je kunt je wachtwoord later wijzigen via <strong>Wachtwoord vergeten</strong> op de inlogpagina.</p>
+      ${emailSignOffHtml(company)}
+    </div>
+  `;
+
+  return { subject, text, html };
+}
+
+export function dealerResetPasswordEmail(opts: {
+  bedrijf: string;
+  email: string;
+  resetUrl: string;
+}): { subject: string; text: string; html: string } {
+  const company = getCompanyInfo();
+  const subject = `Wachtwoord opnieuw instellen | ${company.name}`;
+  const text = [
+    `Beste ${opts.bedrijf},`,
+    "",
+    "Je hebt gevraagd om je marketplace-wachtwoord opnieuw in te stellen.",
+    "",
+    `Account: ${opts.email}`,
+    "",
+    "Klik op de link hieronder (geldig voor 2 uur):",
+    opts.resetUrl,
+    "",
+    "Heb jij dit niet aangevraagd? Negeer deze mail dan.",
+    "",
+    emailSignOffText(company),
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:Segoe UI,sans-serif;color:#181818;line-height:1.5">
+      <p>Beste ${escapeHtml(opts.bedrijf)},</p>
+      <p>Je hebt gevraagd om je marketplace-wachtwoord opnieuw in te stellen.</p>
+      <p><strong>Account:</strong> ${escapeHtml(opts.email)}</p>
+      <p>Klik op de knop hieronder (geldig voor 2 uur):</p>
+      <p><a href="${escapeHtml(opts.resetUrl)}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Nieuw wachtwoord kiezen</a></p>
+      <p style="color:#514f4d;font-size:14px">Heb jij dit niet aangevraagd? Negeer deze mail dan.</p>
+      ${emailSignOffHtml(company)}
+    </div>
+  `;
+
+  return { subject, text, html };
+}

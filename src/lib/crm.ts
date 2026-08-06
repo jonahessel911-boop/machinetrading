@@ -630,6 +630,31 @@ export async function crmMarkDealerActivated(
   return true;
 }
 
+/** Update laatste dealer-login timestamp. */
+export async function crmTouchDealerLastLogin(buyerId: string): Promise<void> {
+  const now = new Date().toISOString();
+  if (isDemoMode()) {
+    const buyer = getDemoStore().buyers.find((b) => b.id === buyerId);
+    if (!buyer) return;
+    buyer.dealer_last_login_at = now;
+    buyer.updated_at = now;
+    return;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .from("buyers")
+    .update({ dealer_last_login_at: now, updated_at: now })
+    .eq("id", buyerId);
+  if (error) {
+    // Kolom nog niet gemigreerd → login niet breken
+    if (/dealer_last_login_at|schema cache|does not exist/i.test(error.message)) {
+      return;
+    }
+    throw new Error(error.message);
+  }
+}
+
 export async function crmDeleteBuyer(id: string): Promise<void> {
   if (isDemoMode()) {
     const store = getDemoStore();

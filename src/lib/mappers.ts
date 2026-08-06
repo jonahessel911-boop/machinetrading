@@ -10,6 +10,8 @@ export type BuyerRow = {
   dealer_password_hash?: string | null;
   dealer_enabled?: boolean;
   dealer_activated_at?: string | null;
+  /** Laatste succesvolle marketplace-login */
+  dealer_last_login_at?: string | null;
   /** Interne CRM-notities */
   notities?: string | null;
   /** Ontvangt dagelijks "Aanbod van de dag" */
@@ -91,6 +93,8 @@ export type Buyer = {
   hasDealerPassword: boolean;
   /** Eerste marketplace-login; null = nog niet geactiveerd */
   dealerActivatedAt: string | null;
+  /** Laatste succesvolle marketplace-login */
+  dealerLastLoginAt: string | null;
   /** Interne CRM-notities */
   notities: string;
   /** Ontvangt dagelijks "Aanbod van de dag" */
@@ -179,6 +183,7 @@ export function mapBuyer(row: BuyerRow): Buyer {
     dealerEnabled: Boolean(row.dealer_enabled),
     hasDealerPassword: Boolean(row.dealer_password_hash),
     dealerActivatedAt: row.dealer_activated_at ?? null,
+    dealerLastLoginAt: row.dealer_last_login_at ?? null,
     notities: row.notities ?? "",
     dailyDigest: Boolean(row.daily_digest),
     createdAt: row.created_at,
