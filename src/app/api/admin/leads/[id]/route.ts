@@ -68,17 +68,19 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     if (body.status && typeof body.status === "string") {
+      const nextStatus =
+        body.status === "in_bemiddeling" ? "koper_zoeken" : body.status;
       const allowed =
         SELECTABLE_LEAD_STATUSES.includes(
-          body.status as (typeof SELECTABLE_LEAD_STATUSES)[number],
-        ) || /^contact_[1-7]$/.test(body.status);
+          nextStatus as (typeof SELECTABLE_LEAD_STATUSES)[number],
+        ) || /^contact_[1-7]$/.test(nextStatus);
       if (!allowed) {
         return NextResponse.json(
           { error: `Ongeldige status: ${body.status}` },
           { status: 400 },
         );
       }
-      patch.status = body.status;
+      patch.status = nextStatus;
     }
 
     if ("inkoopprijs" in body) {

@@ -89,7 +89,11 @@ export async function crmListLeads(
     const store = getDemoStore();
     let rows = [...store.leads];
     if (filters.status) {
-      rows = rows.filter((l) => l.status === filters.status);
+      const matchStatuses =
+        filters.status === "koper_zoeken"
+          ? ["koper_zoeken", "in_bemiddeling"]
+          : [filters.status];
+      rows = rows.filter((l) => matchStatuses.includes(l.status));
     } else if (!filters.archive) {
       rows = rows.filter((l) => l.status !== "geen_contact");
     }
@@ -133,8 +137,13 @@ export async function crmListLeads(
     .select("*, buyer:buyers(*), photos:lead_photos(*)")
     .order("created_at", { ascending: false });
 
-  if (filters.status) query = query.eq("status", filters.status);
-  else if (!filters.archive) query = query.neq("status", "geen_contact");
+  if (filters.status === "koper_zoeken") {
+    query = query.in("status", ["koper_zoeken", "in_bemiddeling"]);
+  } else if (filters.status) {
+    query = query.eq("status", filters.status);
+  } else if (!filters.archive) {
+    query = query.neq("status", "geen_contact");
+  }
 
   if (filters.q) {
     const q = filters.q;

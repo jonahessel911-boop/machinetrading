@@ -8,26 +8,35 @@ export function statusFromAttempts(attempts: number): string {
 export function labelForStatus(status: string, _attempts?: number): string {
   // Oude contact_* waarden waren geen echte status — toon als Nieuw
   if (status.startsWith("contact_")) return STATUS_LABELS.nieuw;
+  if (status === "in_bemiddeling") return STATUS_LABELS.koper_zoeken;
   return STATUS_LABELS[status] ?? status;
 }
 
+/** Legacy DB-waarde → huidige statuskey */
+export function normalizeLeadStatus(status: string): string {
+  if (status === "in_bemiddeling") return "koper_zoeken";
+  if (status.startsWith("contact_")) return "nieuw";
+  return status;
+}
+
 export function leadStatusBadgeClass(status: string): string {
+  const key = normalizeLeadStatus(status);
   // Oude contact_* = feitelijk Nieuw
-  if (status === "nieuw" || status.startsWith("contact_")) {
+  if (key === "nieuw") {
     return "crm-badge crm-badge-nieuw";
   }
-  if (status === "afwachten_fotos") return "crm-badge crm-badge-fotos";
-  if (status === "terugbellen") return "crm-badge crm-badge-terugbellen";
-  if (status === "koper_zoeken" || status === "in_bemiddeling") {
+  if (key === "afwachten_fotos") return "crm-badge crm-badge-fotos";
+  if (key === "terugbellen") return "crm-badge crm-badge-terugbellen";
+  if (key === "koper_zoeken") {
     return "crm-badge crm-badge-bemiddeling";
   }
-  if (status === "bod_doorgegeven") return "crm-badge crm-badge-bod";
-  if (status === "deal") return "crm-badge crm-badge-deal";
+  if (key === "bod_doorgegeven") return "crm-badge crm-badge-bod";
+  if (key === "deal") return "crm-badge crm-badge-deal";
   if (
-    status === "geen_contact" ||
-    status === "geen_interesse" ||
-    status === "onrealistische_prijs" ||
-    status === "verkeerd_telefoonnummer"
+    key === "geen_contact" ||
+    key === "geen_interesse" ||
+    key === "onrealistische_prijs" ||
+    key === "verkeerd_telefoonnummer"
   ) {
     return "crm-badge crm-badge-dead";
   }

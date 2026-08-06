@@ -1,3 +1,5 @@
+import { normalizeLeadStatus } from "./status";
+
 export type BuyerRow = {
   id: string;
   naam: string;
@@ -238,7 +240,7 @@ export function mapLead(
     toevoeging: row.toevoeging,
     postcode: row.postcode,
     woonplaats: row.woonplaats,
-    status: row.status,
+    status: normalizeLeadStatus(row.status),
     contactAttempts: row.contact_attempts,
     contactAttemptTimes: Array.isArray(row.contact_attempt_times)
       ? row.contact_attempt_times.map((t) => String(t))
