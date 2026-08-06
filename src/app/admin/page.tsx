@@ -44,12 +44,13 @@ function MarketplaceIcon({ live }: { live: boolean }) {
 export default async function AdminDashboardPage() {
   if (!(await isAuthenticated())) redirect("/admin/login");
 
-  const [stats, recent, series] = await Promise.all([
+  const [stats, recentResult, series] = await Promise.all([
     crmStats(),
-    crmListLeads({ limit: 10 }),
+    crmListLeads({ page: 1, pageSize: 10 }),
     crmDashboardSeries(),
   ]);
 
+  const recent = recentResult.leads;
   const liveOnMarketplace = await mpLiveLeadIds(recent.map((l) => l.id));
 
   return (

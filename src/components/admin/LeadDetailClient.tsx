@@ -18,6 +18,7 @@ import { ImageEraseEditor } from "./ImageEraseEditor";
 import { ShareToBuyerModal } from "./ShareToBuyerModal";
 import { LeadMessagesCard } from "./LeadMessagesCard";
 import { LeadNotesCard } from "./LeadNotesCard";
+import { CallTaxatiePanel } from "./CallTaxatiePanel";
 
 function statusBadgeClass(status: string) {
   return leadStatusBadgeClass(status);
@@ -984,6 +985,10 @@ export function LeadDetailClient({
             </select>
           </label>
         </div>
+      </div>
+
+      <div className="lead-detail-taxatie-bottom">
+        <CallTaxatiePanel lead={lead} />
       </div>
     </>
   );

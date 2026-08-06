@@ -6,10 +6,30 @@ import { isAuthenticated } from "@/lib/auth";
 import { STATUS_LABELS } from "@/lib/constants";
 import { crmListLeads, isDemoMode } from "@/lib/crm";
 
+function buildLeadsHref(opts: {
+  status?: string;
+  archive?: boolean;
+  q?: string;
+  page?: number;
+}) {
+  const sp = new URLSearchParams();
+  if (opts.status) sp.set("status", opts.status);
+  if (opts.archive) sp.set("archive", "1");
+  if (opts.q) sp.set("q", opts.q);
+  if (opts.page && opts.page > 1) sp.set("page", String(opts.page));
+  const qs = sp.toString();
+  return qs ? `/admin/leads?${qs}` : "/admin/leads";
+}
+
 export default async function AdminLeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; archive?: string; q?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    archive?: string;
+    q?: string;
+    page?: string;
+  }>;
 }) {
   if (!(await isAuthenticated())) redirect("/admin/login");
 
@@ -17,10 +37,12 @@ export default async function AdminLeadsPage({
   const status = params.status;
   const archive = params.archive === "1";
   const q = params.q?.trim();
+  const page = Math.max(1, Number(params.page) || 1);
+  const pageSize = 50;
 
-  let leads;
+  let list;
   try {
-    leads = await crmListLeads({ status, archive, q });
+    list = await crmListLeads({ status, archive, q, page, pageSize });
   } catch (err) {
     return (
       <AdminChrome demo={isDemoMode()}>
@@ -38,6 +60,12 @@ export default async function AdminLeadsPage({
     );
   }
 
+  const { leads, total } = list;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const from = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const to = Math.min(safePage * pageSize, total);
+
   const filterLabel = q
     ? `Zoekresultaat “${q}”`
     : status
@@ -46,13 +74,16 @@ export default async function AdminLeadsPage({
         ? "Alles"
         : "Actief";
 
+  const base = { status, archive, q };
+
   return (
     <AdminChrome demo={isDemoMode()}>
       <div className="crm-page-header">
         <div>
           <h1 className="crm-title">Leads</h1>
           <p className="crm-subtitle">
-            {filterLabel} · {leads.length} records
+            {filterLabel} · {total} records
+            {total > 0 ? ` · ${from}–${to}` : ""}
           </p>
         </div>
       </div>
@@ -103,6 +134,38 @@ export default async function AdminLeadsPage({
       </div>
 
       <LeadsTableClient leads={leads} />
+
+      {totalPages > 1 ? (
+        <nav className="crm-pagination" aria-label="Paginering">
+          {safePage > 1 ? (
+            <Link
+              className="crm-btn"
+              href={buildLeadsHref({ ...base, page: safePage - 1 })}
+            >
+              Vorige
+            </Link>
+          ) : (
+            <span className="crm-btn" aria-disabled="true">
+              Vorige
+            </span>
+          )}
+          <span className="crm-pagination-info">
+            Pagina {safePage} van {totalPages}
+          </span>
+          {safePage < totalPages ? (
+            <Link
+              className="crm-btn"
+              href={buildLeadsHref({ ...base, page: safePage + 1 })}
+            >
+              Volgende
+            </Link>
+          ) : (
+            <span className="crm-btn" aria-disabled="true">
+              Volgende
+            </span>
+          )}
+        </nav>
+      ) : null}
     </AdminChrome>
   );
 }

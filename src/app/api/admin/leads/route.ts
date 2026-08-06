@@ -13,7 +13,13 @@ export async function GET(request: Request) {
   const q = searchParams.get("q")?.trim();
 
   try {
-    const leads = await crmListLeads({ status, archive, q });
+    const { leads } = await crmListLeads({
+      status,
+      archive,
+      q,
+      page: 1,
+      pageSize: 200,
+    });
     return NextResponse.json(leads);
   } catch (err) {
     return NextResponse.json(

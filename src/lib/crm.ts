@@ -1,6 +1,7 @@
 import {
   mapBuyer,
   mapLead,
+  mapPhoto,
   type Buyer,
   type BuyerRow,
   type ContractRow,
@@ -45,7 +46,11 @@ export function sortCallQueue(leads: Lead[]): Lead[] {
 }
 
 export async function crmListCallQueue(): Promise<Lead[]> {
-  const leads = await crmListLeads({ status: "nieuw" });
+  const { leads } = await crmListLeads({
+    status: "nieuw",
+    page: 1,
+    pageSize: 500,
+  });
   return sortCallQueue(leads);
 }
 
@@ -79,12 +84,94 @@ export type LeadListFilters = {
   status?: string | null;
   archive?: boolean;
   q?: string | null;
+  /** @deprecated gebruik page + pageSize; blijft werken als pageSize op page 1 */
   limit?: number;
+  /** 1-based */
+  page?: number;
+  pageSize?: number;
 };
+
+export type LeadListResult = {
+  leads: Lead[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+const DEFAULT_PAGE_SIZE = 50;
+
+function applyLeadFilters(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query: any,
+  filters: LeadListFilters,
+) {
+  if (filters.status === "koper_zoeken") {
+    return query.in("status", ["koper_zoeken", "in_bemiddeling"]);
+  }
+  if (filters.status) {
+    return query.eq("status", filters.status);
+  }
+  if (!filters.archive) {
+    return query.neq("status", "geen_contact");
+  }
+  return query;
+}
+
+async function attachLeadPhotos(leads: Lead[]): Promise<Lead[]> {
+  if (leads.length === 0 || isDemoMode()) return leads;
+
+  const supabase = getSupabaseAdmin();
+  const ids = leads.map((l) => l.id);
+  const { data, error } = await supabase
+    .from("lead_photos")
+    .select("*")
+    .in("lead_id", ids)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  const byLead = new Map<string, ReturnType<typeof mapPhoto>[]>();
+  for (const row of data ?? []) {
+    const photo = mapPhoto(row as LeadPhotoRow);
+    const list = byLead.get(photo.leadId) ?? [];
+    list.push(photo);
+    byLead.set(photo.leadId, list);
+  }
+
+  return leads.map((lead) => ({
+    ...lead,
+    photos: byLead.get(lead.id) ?? [],
+  }));
+}
+
+async function attachHighestBids(leads: Lead[]): Promise<Lead[]> {
+  if (leads.length === 0) return leads;
+  const highest = await crmHighestBidsByLeadIds(leads.map((l) => l.id));
+  return leads.map((lead) => {
+    const h = highest.get(lead.id);
+    return {
+      ...lead,
+      highestBid: h?.bedrag ?? null,
+      highestBidBidder: h?.bidderLabel ?? null,
+    };
+  });
+}
 
 export async function crmListLeads(
   filters: LeadListFilters = {},
-): Promise<Lead[]> {
+): Promise<LeadListResult> {
+  const pageSize = Math.max(
+    1,
+    Math.min(
+      200,
+      filters.pageSize ?? filters.limit ?? DEFAULT_PAGE_SIZE,
+    ),
+  );
+  const page = Math.max(1, filters.page ?? 1);
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   if (isDemoMode()) {
     const store = getDemoStore();
     let rows = [...store.leads];
@@ -118,32 +205,23 @@ export async function crmListLeads(
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
-    if (filters.limit) rows = rows.slice(0, filters.limit);
-    const leads = rows.map((l) => mapLead(hydrateLead(store, l)));
-    const highest = await crmHighestBidsByLeadIds(leads.map((l) => l.id));
-    return leads.map((lead) => {
-      const h = highest.get(lead.id);
-      return {
-        ...lead,
-        highestBid: h?.bedrag ?? null,
-        highestBidBidder: h?.bidderLabel ?? null,
-      };
-    });
+    const total = rows.length;
+    let leads = rows
+      .slice(from, to + 1)
+      .map((l) => mapLead(hydrateLead(store, l)));
+    leads = await attachHighestBids(leads);
+    return { leads, total, page, pageSize };
   }
 
   const supabase = getSupabaseAdmin();
+  // Geen geneste photos in de list-query: PostgREST max-rows kan parent-rijen
+  // afkappen wanneer er veel foto's zijn.
   let query = supabase
     .from("leads")
-    .select("*, buyer:buyers(*), photos:lead_photos(*)")
+    .select("*, buyer:buyers(*)", { count: "exact" })
     .order("created_at", { ascending: false });
 
-  if (filters.status === "koper_zoeken") {
-    query = query.in("status", ["koper_zoeken", "in_bemiddeling"]);
-  } else if (filters.status) {
-    query = query.eq("status", filters.status);
-  } else if (!filters.archive) {
-    query = query.neq("status", "geen_contact");
-  }
+  query = applyLeadFilters(query, filters);
 
   if (filters.q) {
     const q = filters.q;
@@ -151,20 +229,22 @@ export async function crmListLeads(
       `naam.ilike.%${q}%,email.ilike.%${q}%,telefoon.ilike.%${q}%,woonplaats.ilike.%${q}%,merk.ilike.%${q}%,model.ilike.%${q}%,postcode.ilike.%${q}%,straat.ilike.%${q}%`,
     );
   }
-  if (filters.limit) query = query.limit(filters.limit);
 
-  const { data, error } = await query;
+  query = query.range(from, to);
+
+  const { data, error, count } = await query;
   if (error) throw new Error(error.message);
-  const leads = (data ?? []).map((row) => mapLead(row as LeadFull));
-  const highest = await crmHighestBidsByLeadIds(leads.map((l) => l.id));
-  return leads.map((lead) => {
-    const h = highest.get(lead.id);
-    return {
-      ...lead,
-      highestBid: h?.bedrag ?? null,
-      highestBidBidder: h?.bidderLabel ?? null,
-    };
-  });
+
+  let leads = (data ?? []).map((row) => mapLead(row as LeadFull));
+  leads = await attachLeadPhotos(leads);
+  leads = await attachHighestBids(leads);
+
+  return {
+    leads,
+    total: count ?? leads.length,
+    page,
+    pageSize,
+  };
 }
 
 export async function crmGetLead(id: string): Promise<Lead | null> {

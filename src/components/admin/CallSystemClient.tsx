@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { CallTaxatiePanel } from "@/components/admin/CallTaxatiePanel";
 import { NewLeadMessageModal } from "@/components/admin/LeadMessagesCard";
 import { PhotoGallery } from "@/components/marketplace/PhotoGallery";
 import type { LeadNote } from "@/lib/lead-notes";
@@ -279,6 +280,7 @@ export function CallSystemClient({ initialLeads }: { initialLeads: Lead[] }) {
 
       {toast ? <p className="call-toast">{toast}</p> : null}
 
+      <div className="call-workspace">
       <article className="call-card">
         <header className="call-card-head">
           <div>
@@ -437,6 +439,11 @@ export function CallSystemClient({ initialLeads }: { initialLeads: Lead[] }) {
           </button>
         </div>
       </article>
+
+      <aside className="call-side">
+        <CallTaxatiePanel lead={lead} />
+      </aside>
+      </div>
 
       <NewLeadMessageModal
         leadId={lead.id}

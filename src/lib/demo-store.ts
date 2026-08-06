@@ -14,6 +14,7 @@ import type { InvoiceRow } from "./invoices";
 import type { LeadBidRow } from "./lead-bids";
 import type { LeadMessageRow } from "./lead-messages";
 import type { LeadNoteRow } from "./lead-notes";
+import type { LeadTaxatieRow } from "./lead-taxaties";
 import { isSupabaseConfigured } from "./supabase";
 
 export type DemoStore = {
@@ -30,6 +31,7 @@ export type DemoStore = {
   funnelEvents: FunnelEventDemoRow[];
   messages: LeadMessageRow[];
   notes: LeadNoteRow[];
+  taxaties: LeadTaxatieRow[];
   selections: {
     id: string;
     slug: string;
@@ -71,7 +73,7 @@ const g = globalThis as unknown as {
   __hvDemoStoreVersion?: number;
 };
 
-const DEMO_STORE_VERSION = 15;
+const DEMO_STORE_VERSION = 16;
 
 function emptyStore(): DemoStore {
   return {
@@ -88,6 +90,7 @@ function emptyStore(): DemoStore {
     funnelEvents: [],
     messages: [],
     notes: [],
+    taxaties: [],
     selections: [],
     adminUsers: [],
   };
@@ -108,6 +111,7 @@ export function getDemoStore(): DemoStore {
     !Array.isArray(g.__hvDemoStore.funnelEvents) ||
     !Array.isArray(g.__hvDemoStore.messages) ||
     !Array.isArray(g.__hvDemoStore.notes) ||
+    !Array.isArray(g.__hvDemoStore.taxaties) ||
     !Array.isArray(g.__hvDemoStore.selections) ||
     !Array.isArray(g.__hvDemoStore.adminUsers) ||
     g.__hvDemoStoreVersion !== DEMO_STORE_VERSION
