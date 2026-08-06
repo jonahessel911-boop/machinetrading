@@ -59,6 +59,16 @@ export function PortalDashboard() {
   const [showDescSaved, setShowDescSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
+  const [exampleOpen, setExampleOpen] = useState(false);
+
+  useEffect(() => {
+    if (!exampleOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExampleOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [exampleOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -378,15 +388,45 @@ export function PortalDashboard() {
               <p className="portal-photo-tip-text">
                 <strong>TIP:</strong> maak een foto van het serienummer
               </p>
-              <figure className="portal-photo-example">
+              <button
+                type="button"
+                className="portal-photo-example"
+                onClick={() => setExampleOpen(true)}
+                aria-label="Voorbeeld typeplaatje vergroten"
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/images/voorbeeld-typeplaatje.png"
                   alt="Voorbeeld van een typeplaatje met serienummer"
                 />
-                <figcaption>Voorbeeld</figcaption>
-              </figure>
+                <span className="portal-photo-example-label">Voorbeeld</span>
+              </button>
             </div>
+
+            {exampleOpen ? (
+              <div
+                className="portal-example-lightbox"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Voorbeeld typeplaatje"
+                onClick={() => setExampleOpen(false)}
+              >
+                <button
+                  type="button"
+                  className="portal-example-lightbox-close"
+                  aria-label="Sluiten"
+                  onClick={() => setExampleOpen(false)}
+                >
+                  ×
+                </button>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/voorbeeld-typeplaatje.png"
+                  alt="Voorbeeld van een typeplaatje met serienummer"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            ) : null}
 
             <label
               className={`portal-upload-zone${uploading ? " is-busy" : ""}`}

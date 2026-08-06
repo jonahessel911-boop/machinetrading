@@ -16,6 +16,7 @@ import {
 type CallResult =
   | "geen_contact"
   | "afwachten_fotos"
+  | "koper_zoeken"
   | "geen_interesse"
   | "onrealistische_prijs";
 
@@ -33,6 +34,11 @@ const RESULTS: {
     id: "afwachten_fotos",
     label: "Afwachten foto's",
     hint: "Status zetten + fotoverzoek-mail sturen",
+  },
+  {
+    id: "koper_zoeken",
+    label: "Koper zoeken",
+    hint: "Lead klaar · we gaan dealers benaderen",
   },
   {
     id: "geen_interesse",
@@ -188,6 +194,15 @@ export function CallSystemClient({ initialLeads }: { initialLeads: Lead[] }) {
             ? `${current.naam}: Afwachten foto's + mail verstuurd.`
             : `${current.naam}: Afwachten foto's (mail mislukt: ${mailData.error || "onbekend"}).`,
         );
+      } else if (result === "koper_zoeken") {
+        const res = await fetch(`/api/admin/leads/${current.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "koper_zoeken" }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || "Opslaan mislukt");
+        setToast(`${current.naam}: Koper zoeken.`);
       } else {
         const status =
           result === "onrealistische_prijs"

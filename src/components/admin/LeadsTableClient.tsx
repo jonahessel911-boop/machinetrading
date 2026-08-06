@@ -150,6 +150,7 @@ export function LeadsTableClient({ leads }: { leads: Lead[] }) {
               <th>Machine</th>
               <th>Timing</th>
               <th>Status</th>
+              <th>Richtprijs</th>
               <th>Hoogste bod</th>
               <th>Foto&apos;s</th>
               <th>Koper</th>
@@ -208,11 +209,6 @@ export function LeadsTableClient({ leads }: { leads: Lead[] }) {
                   </td>
                   <td>
                     {lead.timing}
-                    {lead.richtprijs != null ? (
-                      <div className="crm-muted">
-                        Richtprijs {formatEuro(lead.richtprijs)}
-                      </div>
-                    ) : null}
                   </td>
                   <td
                     onClick={(e) => e.stopPropagation()}
@@ -240,6 +236,11 @@ export function LeadsTableClient({ leads }: { leads: Lead[] }) {
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td>
+                    {lead.richtprijs != null
+                      ? formatEuro(lead.richtprijs)
+                      : "—"}
                   </td>
                   <td>
                     {lead.highestBid != null ? (

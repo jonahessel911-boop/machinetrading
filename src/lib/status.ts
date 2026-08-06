@@ -18,7 +18,9 @@ export function leadStatusBadgeClass(status: string): string {
   }
   if (status === "afwachten_fotos") return "crm-badge crm-badge-fotos";
   if (status === "terugbellen") return "crm-badge crm-badge-terugbellen";
-  if (status === "in_bemiddeling") return "crm-badge crm-badge-bemiddeling";
+  if (status === "koper_zoeken" || status === "in_bemiddeling") {
+    return "crm-badge crm-badge-bemiddeling";
+  }
   if (status === "bod_doorgegeven") return "crm-badge crm-badge-bod";
   if (status === "deal") return "crm-badge crm-badge-deal";
   if (

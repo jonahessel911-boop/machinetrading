@@ -73,8 +73,8 @@ export default async function AdminLeadsPage({
         <Link className="crm-btn" href="/admin/leads?status=afwachten_fotos">
           Afwachten foto&apos;s
         </Link>
-        <Link className="crm-btn" href="/admin/leads?status=in_bemiddeling">
-          In bemiddeling
+        <Link className="crm-btn" href="/admin/leads?status=koper_zoeken">
+          Koper zoeken
         </Link>
         <Link className="crm-btn" href="/admin/leads?status=bod_doorgegeven">
           Bod doorgestuurd

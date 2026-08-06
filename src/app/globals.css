@@ -4678,6 +4678,16 @@ textarea.crm-input {
   margin: 0;
   flex-shrink: 0;
   width: 88px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.portal-photo-example:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
 }
 
 .portal-photo-example img {
@@ -4690,7 +4700,7 @@ textarea.crm-input {
   background: #f3f4f6;
 }
 
-.portal-photo-example figcaption {
+.portal-photo-example-label {
   position: absolute;
   left: 0.3rem;
   bottom: 0.3rem;
@@ -4702,6 +4712,46 @@ textarea.crm-input {
   font-weight: 800;
   letter-spacing: 0.02em;
   line-height: 1.2;
+}
+
+.portal-example-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(0, 0, 0, 0.82);
+  cursor: zoom-out;
+}
+
+.portal-example-lightbox img {
+  max-width: min(920px, 100%);
+  max-height: min(88vh, 100%);
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  cursor: default;
+}
+
+.portal-example-lightbox-close {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.portal-example-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .portal-field-block {
