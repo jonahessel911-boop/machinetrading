@@ -424,9 +424,30 @@ export async function crmListBidsForBuyer(input: {
   let rows: LeadBidRow[] = [];
 
   if (isDemoMode()) {
-    rows = getDemoStore().leadBids.filter((b) =>
-      bidMatchesBuyer(b, matchInput),
-    );
+    const store = getDemoStore();
+    rows = store.leadBids.filter((b) => bidMatchesBuyer(b, matchInput));
+
+    for (const listing of store.listings) {
+      if (!listing.lead_id) continue;
+      for (const b of store.bids) {
+        if (b.listing_id !== listing.id) continue;
+        const asLeadBid: LeadBidRow = {
+          id: b.id,
+          lead_id: listing.lead_id,
+          selection_id: null,
+          buyer_id: null,
+          bidder_naam: b.bidder_naam,
+          bidder_email: b.bidder_email,
+          bidder_telefoon: b.bidder_telefoon,
+          bidder_bedrijf: b.bidder_bedrijf,
+          bedrag: b.bedrag,
+          created_at: b.created_at,
+        };
+        if (bidMatchesBuyer(asLeadBid, matchInput)) {
+          rows.push(asLeadBid);
+        }
+      }
+    }
   } else {
     const supabase = getSupabaseAdmin();
     const collected = new Map<string, LeadBidRow>();
@@ -442,12 +463,12 @@ export async function crmListBidsForBuyer(input: {
       .order("created_at", { ascending: false });
 
     if (byBuyer.error) {
-      if (/lead_bids|schema cache|does not exist/i.test(byBuyer.error.message)) {
-        return [];
+      if (!/lead_bids|schema cache|does not exist/i.test(byBuyer.error.message)) {
+        throw new Error(byBuyer.error.message);
       }
-      throw new Error(byBuyer.error.message);
+    } else {
+      merge(byBuyer.data as LeadBidRow[]);
     }
-    merge(byBuyer.data as LeadBidRow[]);
 
     if (emails.length > 0) {
       const byEmail = await supabase
@@ -456,9 +477,12 @@ export async function crmListBidsForBuyer(input: {
         .in("bidder_email", emails)
         .order("created_at", { ascending: false });
       if (byEmail.error) {
-        throw new Error(byEmail.error.message);
+        if (!/lead_bids|schema cache|does not exist/i.test(byEmail.error.message)) {
+          throw new Error(byEmail.error.message);
+        }
+      } else {
+        merge(byEmail.data as LeadBidRow[]);
       }
-      merge(byEmail.data as LeadBidRow[]);
     }
 
     if (bedrijfKey) {
@@ -472,19 +496,143 @@ export async function crmListBidsForBuyer(input: {
       }
     }
 
+    // Marketplace-biedingen (via listing → lead)
+    const mpCollected: LeadBidRow[] = [];
+    const addMp = (
+      list: Array<Record<string, unknown>> | null | undefined,
+      leadByListing: Map<string, string>,
+    ) => {
+      for (const b of list ?? []) {
+        const listingId = String(b.listing_id ?? "");
+        const leadId = leadByListing.get(listingId);
+        if (!leadId) continue;
+        const row: LeadBidRow = {
+          id: String(b.id),
+          lead_id: leadId,
+          selection_id: null,
+          buyer_id: null,
+          bidder_naam: String(b.bidder_naam ?? ""),
+          bidder_email: String(b.bidder_email ?? ""),
+          bidder_telefoon:
+            b.bidder_telefoon == null ? null : String(b.bidder_telefoon),
+          bidder_bedrijf:
+            b.bidder_bedrijf == null ? null : String(b.bidder_bedrijf),
+          bedrag: Number(b.bedrag),
+          created_at: String(b.created_at ?? ""),
+        };
+        if (bidMatchesBuyer(row, matchInput)) {
+          mpCollected.push(row);
+        }
+      }
+    };
+
+    // Marketplace-biedingen via e-mail (case-insensitive) of bedrijfsnaam
+    const mpQueryParts: Promise<{
+      data: unknown;
+      error: { message: string } | null;
+    }>[] = [];
+    if (emails.length > 0) {
+      // PostgREST: or(bidder_email.ilike.a,bidder_email.ilike.b)
+      const emailOr = emails
+        .map((e) => `bidder_email.ilike."${e.replace(/"/g, "")}"`)
+        .join(",");
+      mpQueryParts.push(
+        supabase
+          .from("marketplace_bids")
+          .select("*")
+          .or(emailOr)
+          .order("created_at", { ascending: false }),
+      );
+    }
+    if (bedrijfKey) {
+      mpQueryParts.push(
+        supabase
+          .from("marketplace_bids")
+          .select("*")
+          .ilike("bidder_bedrijf", input.bedrijf!.trim())
+          .order("created_at", { ascending: false }),
+      );
+    }
+
+    if (mpQueryParts.length > 0) {
+      const mpResults = await Promise.all(mpQueryParts);
+      const mpById = new Map<string, Record<string, unknown>>();
+      for (const res of mpResults) {
+        if (res.error) {
+          if (
+            !/marketplace_bids|schema cache|does not exist/i.test(
+              res.error.message,
+            )
+          ) {
+            throw new Error(res.error.message);
+          }
+          continue;
+        }
+        for (const row of (res.data as Record<string, unknown>[] | null) ?? []) {
+          mpById.set(String(row.id), row);
+        }
+      }
+
+      const listingIds = [
+        ...new Set(
+          [...mpById.values()]
+            .map((b) => String(b.listing_id ?? ""))
+            .filter(Boolean),
+        ),
+      ];
+
+      if (listingIds.length > 0) {
+        const { data: listings, error: listErr } = await supabase
+          .from("marketplace_listings")
+          .select("id, lead_id")
+          .in("id", listingIds);
+
+        if (listErr) {
+          if (
+            !/marketplace_listings|schema cache|does not exist/i.test(
+              listErr.message,
+            )
+          ) {
+            throw new Error(listErr.message);
+          }
+        } else {
+          const leadByListing = new Map<string, string>();
+          for (const l of listings ?? []) {
+            if (l.id && l.lead_id) {
+              leadByListing.set(String(l.id), String(l.lead_id));
+            }
+          }
+          addMp([...mpById.values()], leadByListing);
+        }
+      }
+    }
+
+    for (const row of mpCollected) {
+      // Prefer lead_bids id; marketplace ids are separate so always merge
+      if (!collected.has(row.id)) collected.set(row.id, row);
+    }
+
     rows = [...collected.values()].filter((b) =>
       bidMatchesBuyer(b, matchInput),
     );
   }
 
-  const bids = rows
+  // Deduplicate by lead+bedrag+time if same bid somehow in both tables
+  const seen = new Set<string>();
+  const deduped: LeadBidRow[] = [];
+  for (const row of rows
+    .slice()
     .sort(
       (a, b) =>
         b.created_at.localeCompare(a.created_at) || b.bedrag - a.bedrag,
-    )
-    .map(mapBid);
+    )) {
+    const key = `${row.lead_id}|${row.bedrag}|${row.bidder_email}|${row.created_at.slice(0, 19)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(row);
+  }
 
-  return enrichBidsWithLeads(bids);
+  return enrichBidsWithLeads(deduped.map(mapBid));
 }
 
 /** Alle biedingen gekoppeld aan een selectie (of op leads van die selectie). */
